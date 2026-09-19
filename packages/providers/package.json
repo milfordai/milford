@@ -29,7 +29,7 @@
     "url": "git+https://github.com/milfordai/milford.git",
     "directory": "packages/providers"
   },
-  "homepage": "https://loage.mintlify.site",
+  "homepage": "https://milford.mintlify.site",
   "bugs": {
     "url": "https://github.com/milfordai/milford/issues"
   },

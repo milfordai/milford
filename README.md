@@ -1,12 +1,12 @@
 <p align="center">
-  <img src="docs/images/loage-02.png" alt="Milford logo" width="88" />
+  <img src=".github/assets/logo.png" alt="Milford logo" width="88" />
 </p>
 
 # Milford
 
 [![CI](https://github.com/milfordai/milford/actions/workflows/ci.yml/badge.svg)](https://github.com/milfordai/milford/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/milfordai/milford)](https://github.com/milfordai/milford/releases)
-[![Docs](https://img.shields.io/badge/docs-loage.mintlify.site-16A34A)](https://loage.mintlify.site)
+[![Docs](https://img.shields.io/badge/docs-milford.mintlify.site-007DCC)](https://milford.mintlify.site)
 [![License](https://img.shields.io/github/license/milfordai/milford)](LICENSE)
 
 ## Intelligent workflows as code: typed decisions, model calls and HTTP calls in a graph
@@ -15,7 +15,7 @@ Milford is a headless workflow engine. You describe a flow as plain JSON: small 
 
 It is not an agent framework. A flow is a fixed graph with no agent loop, so you can read it, version it in git and test it. Models answer narrow, typed questions, and your graph decides what happens next.
 
-[**Documentation**](https://loage.mintlify.site) · [Quick Start](#quick-start) · [How it works](#how-it-works) · [Examples](#examples) · [Releases](https://github.com/milfordai/milford/releases)
+[**Documentation**](https://milford.mintlify.site) · [Quick Start](#quick-start) · [How it works](#how-it-works) · [Examples](#examples) · [Releases](https://github.com/milfordai/milford/releases)
 
 ## Quick Start
 
@@ -69,7 +69,7 @@ Then use it in a flow. Edges with `when` route on the answer, and a low-confiden
 { "from": "team", "to": "billing-reply", "when": { "path": "data.choice", "op": "eq", "value": "billing" } }
 ```
 
-The complete flow is [`examples/flows/triage.json`](examples/flows/triage.json). Switching the provider to an OpenAI-compatible server or a local classifier is a config change, and the flow stays the same.
+The complete flow is [`flows/triage.json`](https://github.com/milfordai/examples/blob/main/flows/triage.json) in the examples repository. Switching the provider to an OpenAI-compatible server or a local classifier is a config change, and the flow stays the same.
 
 **That's it!** Your flow runs behind an authenticated API with streaming, idempotent retries and run limits.
 
@@ -94,6 +94,12 @@ flowchart LR
   E["Engine<br/>compile once, run many"] --> F["Providers<br/>OpenAI-compatible, Anthropic,<br/>Jev, HTTP classifier"]
   E --> G["http node<br/>any REST API"]
   E --> H["mcp node<br/>other MCP servers"]
+  classDef entry fill:#007DCC,stroke:#007DCC,color:#fff
+  classDef engine fill:#D10056,stroke:#D10056,color:#fff
+  classDef target fill:#FFB900,stroke:#FFB900,color:#1c1c1c
+  class A,B,C,D entry
+  class E engine
+  class F,G,H target
 ```
 
 A flow is a graph. Nodes in the same level run in parallel, `when` conditions on edges skip untaken branches, and a failed branch does not stop the others. This is the triage flow from the Quick Start:
@@ -109,9 +115,15 @@ flowchart LR
   technical --> out
   sales --> out
   human --> out
+  classDef edge fill:#007DCC,stroke:#007DCC,color:#fff
+  classDef decide fill:#FFB900,stroke:#FFB900,color:#1c1c1c
+  classDef stop fill:#D10056,stroke:#D10056,color:#fff
+  class in,out edge
+  class team decide
+  class human stop
 ```
 
-Every run returns a trace. This is the `category` decision of the [error-classification example](examples/error-classification), with a stand-in provider:
+Every run returns a trace. This is the `category` decision of the [error-classification example](https://github.com/milfordai/examples/tree/main/error-classification), with a stand-in provider:
 
 ```json
 {
@@ -140,31 +152,31 @@ The answer, the options that were offered, the confidence and the provider are a
 
 ### Flows
 
-- **[Plain JSON graphs](https://loage.mintlify.site/concepts/flows)** - No UI types in the model. Write JSON by hand or build it with the TypeScript `flow()` builder.
-- **[Parallel execution](https://loage.mintlify.site/concepts/flows)** - Nodes in a level run concurrently. Failed branches are isolated and reported in the result.
-- **[Branching](https://loage.mintlify.site/concepts/flows)** - Route on any field of a node result, with `join: "all"` when a node needs every input.
-- **[Retries, timeouts and caching](https://loage.mintlify.site/concepts/flows)** - Per node, with abort signals that reach every network call.
-- **[Templates](https://loage.mintlify.site/concepts/flows)** - `{{input.field}}` and `{{node.data.field}}` placeholders. An unknown variable fails the node instead of rendering an empty string.
+- **[Plain JSON graphs](https://milford.mintlify.site/concepts/flows)** - No UI types in the model. Write JSON by hand or build it with the TypeScript `flow()` builder.
+- **[Parallel execution](https://milford.mintlify.site/concepts/flows)** - Nodes in a level run concurrently. Failed branches are isolated and reported in the result.
+- **[Branching](https://milford.mintlify.site/concepts/flows)** - Route on any field of a node result, with `join: "all"` when a node needs every input.
+- **[Retries, timeouts and caching](https://milford.mintlify.site/concepts/flows)** - Per node, with abort signals that reach every network call.
+- **[Templates](https://milford.mintlify.site/concepts/flows)** - `{{input.field}}` and `{{node.data.field}}` placeholders. An unknown variable fails the node instead of rendering an empty string.
 
 ### Decisions and models
 
-- **[Typed decisions](https://loage.mintlify.site/concepts/decisions)** - `choice`, `score` and `noul` answers instead of parsed free text, with confidence gating and a `none_of_these` option.
-- **[Providers](https://loage.mintlify.site/providers/overview)** - OpenAI and any OpenAI-compatible server, Anthropic, Jev, and a generic HTTP endpoint for your own classifier.
-- **[Fallback, circuit breaker and rate limit](https://loage.mintlify.site/providers/overview)** - Prefer a local provider and fall back to a cloud one, or the reverse.
-- **[Fan-out](https://loage.mintlify.site/concepts/decisions)** - Decisions in the same level run together, and providers that support batching receive them as one request.
+- **[Typed decisions](https://milford.mintlify.site/concepts/decisions)** - `choice`, `score` and `noul` answers instead of parsed free text, with confidence gating and a `none_of_these` option.
+- **[Providers](https://milford.mintlify.site/providers/overview)** - OpenAI and any OpenAI-compatible server, Anthropic, Jev, and a generic HTTP endpoint for your own classifier.
+- **[Fallback, circuit breaker and rate limit](https://milford.mintlify.site/providers/overview)** - Prefer a local provider and fall back to a cloud one, or the reverse.
+- **[Fan-out](https://milford.mintlify.site/concepts/decisions)** - Decisions in the same level run together, and providers that support batching receive them as one request.
 
 ### Interfaces
 
-- **[HTTP API](https://loage.mintlify.site/reference/http-api)** - Run flows with server-sent events, `Idempotency-Key` retries, bearer auth and an [OpenAPI 3.1 spec](docs/openapi.yaml).
-- **[MCP server](https://loage.mintlify.site/guides/mcp)** - Expose chosen flows as tools to external LLMs over stdio or Streamable HTTP. Nothing is exposed by default.
-- **[MCP client](https://loage.mintlify.site/guides/mcp)** - The `mcp` node calls tools on other MCP servers, and a decision can choose the tool from an allow list.
-- **[Channels](https://loage.mintlify.site/guides/channels)** - Slack (Socket Mode), Telegram and signed webhooks. Access is deny by default.
+- **[HTTP API](https://milford.mintlify.site/reference/http-api)** - Run flows with server-sent events, `Idempotency-Key` retries, bearer auth and an [OpenAPI 3.1 spec](packages/server/openapi.yaml).
+- **[MCP server](https://milford.mintlify.site/guides/mcp)** - Expose chosen flows as tools to external LLMs over stdio or Streamable HTTP. Nothing is exposed by default.
+- **[MCP client](https://milford.mintlify.site/guides/mcp)** - The `mcp` node calls tools on other MCP servers, and a decision can choose the tool from an allow list.
+- **[Channels](https://milford.mintlify.site/guides/channels)** - Slack (Socket Mode), Telegram and signed webhooks. Access is deny by default.
 
 ### Deploy and operate
 
-- **[Config as code](https://loage.mintlify.site/reference/config)** - One YAML file with `${ENV}` interpolation and a generated JSON Schema for editor completion.
-- **[Docker](https://loage.mintlify.site/reference/deployment)** - Images for `linux/amd64` and `linux/arm64`, one for the HTTP server and one for the MCP server. No database.
-- **[Run limits](https://loage.mintlify.site/reference/config)** - A shared timeout and concurrency cap, JSON logs and a graceful shutdown.
+- **[Config as code](https://milford.mintlify.site/reference/config)** - One YAML file with `${ENV}` interpolation and a generated JSON Schema for editor completion.
+- **[Docker](https://milford.mintlify.site/reference/deployment)** - Images for `linux/amd64` and `linux/arm64`, one for the HTTP server and one for the MCP server. No database.
+- **[Run limits](https://milford.mintlify.site/reference/config)** - A shared timeout and concurrency cap, JSON logs and a graceful shutdown.
 - **[Vendor neutral](AGENTS.md)** - The core has no I/O and no vendor code. CI fails if `typesafe` or `jev` appears in it.
 
 ---
@@ -181,7 +193,7 @@ The answer, the options that were offered, the confidence and the provider are a
 | `mcp` | One tool call on another MCP server. |
 | `output` | Marks the flow result. |
 
-Add your own node with one `registerNode` call: [built-in nodes reference](https://loage.mintlify.site/nodes/reference).
+Add your own node with one `registerNode` call: [built-in nodes reference](https://milford.mintlify.site/nodes/reference).
 
 | Provider | Capabilities | Notes |
 | --- | --- | --- |
@@ -190,7 +202,7 @@ Add your own node with one `registerNode` call: [built-in nodes reference](https
 | `typesafe` | decide | Jev. Probabilities and confidence, with batching. |
 | `http` | decide, chat | Your own classifier endpoint, with a request template and JSONPath mapping. |
 
-LLM-backed decisions report the model's own confidence estimate, not a calibrated probability. See [providers](https://loage.mintlify.site/providers/overview).
+LLM-backed decisions report the model's own confidence estimate, not a calibrated probability. See [providers](https://milford.mintlify.site/providers/overview).
 
 ---
 
@@ -204,7 +216,7 @@ LLM-backed decisions report the model's own confidence estimate, not a calibrate
 node packages/server/dist/cli.js milford.config.yaml
 ```
 
-An [OpenAPI 3.1 spec](docs/openapi.yaml) describes the API, so you can generate a client for Java, .NET, Python or Go.
+An [OpenAPI 3.1 spec](packages/server/openapi.yaml) describes the API, so you can generate a client for Java, .NET, Python or Go.
 
 ### 2. MCP server
 
@@ -223,7 +235,7 @@ claude mcp add --transport http milford http://localhost:8090/mcp \
   --header "Authorization: Bearer $MILFORD_MCP_TOKEN"
 ```
 
-Give a flow a `description` and an `input` JSON Schema, and clients see them as the tool description and arguments. See the [MCP guide](https://loage.mintlify.site/guides/mcp).
+Give a flow a `description` and an `input` JSON Schema, and clients see them as the tool description and arguments. See the [MCP guide](https://milford.mintlify.site/guides/mcp).
 
 ### 3. TypeScript library
 
@@ -262,7 +274,7 @@ IBM MQ ──> Spring service ──POST /v1/flows/classify-error/run──> Mil
               └──> writes the new error to its own database
 ```
 
-See [enterprise integration](https://loage.mintlify.site/guides/enterprise-integration).
+See [enterprise integration](https://milford.mintlify.site/guides/enterprise-integration).
 
 ---
 
@@ -304,7 +316,7 @@ server:
 run: { timeoutMs: 30000, maxConcurrentRuns: 32 }
 ```
 
-The server checks everything at startup: unknown providers, providers that cannot do what a node needs, bad node config and cycles fail the boot instead of failing a request. See the [configuration reference](https://loage.mintlify.site/reference/config).
+The server checks everything at startup: unknown providers, providers that cannot do what a node needs, bad node config and cycles fail the boot instead of failing a request. See the [configuration reference](https://milford.mintlify.site/reference/config).
 
 ---
 
@@ -319,8 +331,7 @@ Milford/
 │   ├── server/          # HTTP server (Hono): API, SSE, idempotency, webhooks
 │   ├── channels/        # Slack, Telegram and webhook adapters
 │   └── mcp/             # MCP server and the mcp node
-├── examples/            # quickstart, flows, home automation, error classification
-├── docs/                # Documentation (Mintlify) and the OpenAPI spec
+├── examples/quickstart/ # The config from the Quick Start
 ├── Dockerfile           # Targets: server (default) and mcp
 └── docker-compose.yml
 ```
@@ -329,25 +340,27 @@ Milford/
 
 ## Examples
 
+[`examples/quickstart`](examples/quickstart) is in this repository. The others are in [milfordai/examples](https://github.com/milfordai/examples).
+
 | Example | What it shows |
 | --- | --- |
-| [`examples/quickstart`](examples/quickstart) | The config from the Quick Start. Runs without an API key. |
-| [`examples/flows`](examples/flows) | One flow per idea: templates, a summarizing model call, decision routing and a webhook call. |
-| [`examples/home-automation`](examples/home-automation) | A free-text command turned into device actions by a fan-out of small decisions, with a fake device server so it runs without hardware. [Guide](https://loage.mintlify.site/guides/home-automation). |
-| [`examples/error-classification`](examples/error-classification) | Classify application errors as defect, infrastructure incident or user exception, and detect repeats of earlier ones. |
+| [`examples/quickstart`](examples/quickstart) | The config from the Quick Start. Runs without an API key. Lives in this repository. |
+| [`flows`](https://github.com/milfordai/examples/tree/main/flows) | One flow per idea: templates, a summarizing model call, decision routing and a webhook call. |
+| [`home-automation`](https://github.com/milfordai/examples/tree/main/home-automation) | A free-text command turned into device actions by a fan-out of small decisions, with a fake device server so it runs without hardware. [Guide](https://milford.mintlify.site/guides/home-automation). |
+| [`error-classification`](https://github.com/milfordai/examples/tree/main/error-classification) | Classify application errors as defect, infrastructure incident or user exception, and detect repeats of earlier ones. |
 
 ---
 
 ## Documentation
 
-The full documentation is at **[loage.mintlify.site](https://loage.mintlify.site)**. Every page can be copied as Markdown or opened in an AI assistant, and there is an [`llms.txt`](https://loage.mintlify.site/llms.txt).
+The full documentation is at **[milford.mintlify.site](https://milford.mintlify.site)**. Every page can be copied as Markdown or opened in an AI assistant, and there is an [`llms.txt`](https://milford.mintlify.site/llms.txt).
 
 | Start here | Concepts | Guides | Reference |
 | --- | --- | --- | --- |
-| [Introduction](https://loage.mintlify.site) | [Flows](https://loage.mintlify.site/concepts/flows) | [MCP](https://loage.mintlify.site/guides/mcp) | [Configuration](https://loage.mintlify.site/reference/config) |
-| [Quickstart](https://loage.mintlify.site/quickstart) | [Decisions](https://loage.mintlify.site/concepts/decisions) | [Channels](https://loage.mintlify.site/guides/channels) | [HTTP API](https://loage.mintlify.site/reference/http-api) |
-| [Built-in nodes](https://loage.mintlify.site/nodes/reference) | [Providers](https://loage.mintlify.site/providers/overview) | [Enterprise integration](https://loage.mintlify.site/guides/enterprise-integration) | [Deployment](https://loage.mintlify.site/reference/deployment) |
-| | | [Home automation](https://loage.mintlify.site/guides/home-automation) | [OpenAPI spec](docs/openapi.yaml) |
+| [Introduction](https://milford.mintlify.site) | [Flows](https://milford.mintlify.site/concepts/flows) | [MCP](https://milford.mintlify.site/guides/mcp) | [Configuration](https://milford.mintlify.site/reference/config) |
+| [Quickstart](https://milford.mintlify.site/quickstart) | [Decisions](https://milford.mintlify.site/concepts/decisions) | [Channels](https://milford.mintlify.site/guides/channels) | [HTTP API](https://milford.mintlify.site/reference/http-api) |
+| [Built-in nodes](https://milford.mintlify.site/nodes/reference) | [Providers](https://milford.mintlify.site/providers/overview) | [Enterprise integration](https://milford.mintlify.site/guides/enterprise-integration) | [Deployment](https://milford.mintlify.site/reference/deployment) |
+| | | [Home automation](https://milford.mintlify.site/guides/home-automation) | [OpenAPI spec](packages/server/openapi.yaml) |
 
 ---
 
@@ -360,7 +373,7 @@ Milford is at v0.0.1. The config format can still change. The Slack and Telegram
 ## Need Help?
 
 - Open an [issue](https://github.com/milfordai/milford/issues) for a bug or a question.
-- Read the [documentation](https://loage.mintlify.site), or ask your AI assistant with the page menu on any docs page.
+- Read the [documentation](https://milford.mintlify.site), or ask your AI assistant with the page menu on any docs page.
 
 ## Contributing
 
@@ -371,7 +384,7 @@ pnpm typecheck
 pnpm test
 ```
 
-Work happens on `feature/<name>` branches from `dev`, merged back with a pull request, and releases are tagged from `main`. Docs live in `docs/` (`cd docs && mint dev`, which needs Node 22 or another LTS version) and ship in the same branch as the code they describe. See [AGENTS.md](AGENTS.md) for the architecture rules and the git flow.
+Work happens on `feature/<name>` branches from `dev`, merged back with a pull request, and releases are tagged from `main`. The documentation is in the [docs repository](https://github.com/milfordai/docs). A change that users can see (a node, a provider, a config key, an endpoint or a CLI flag) needs a linked pull request there. See [AGENTS.md](AGENTS.md) for the architecture rules and the git flow.
 
 ## License
 

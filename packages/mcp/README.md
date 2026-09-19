@@ -6,4 +6,4 @@ The [Milford](https://github.com/milfordai/milford) MCP server. The `milford-mcp
 npx @milford/mcp milford.config.yaml
 ```
 
-See the [MCP guide](https://loage.mintlify.site/guides/mcp).
+See the [MCP guide](https://milford.mintlify.site/guides/mcp).

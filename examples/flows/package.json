@@ -1,7 +1,0 @@
-{
-  "name": "@milford/example-flows",
-  "private": true,
-  "type": "module",
-  "scripts": { "typecheck": "tsc --noEmit", "test": "vitest run" },
-  "dependencies": { "@milford/core": "workspace:*" }
-}
