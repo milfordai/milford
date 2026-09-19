@@ -6,6 +6,7 @@ import { bodyLimit } from "hono/body-limit";
 import { streamSSE } from "hono/streaming";
 import { createIdempotencyStore } from "./idempotency.js";
 import { buildOpenApi } from "./openapi.js";
+import { rateLimit, type RateLimitOptions } from "./rate-limit.js";
 import { memoryRunStore, summarize, toRecord, type RunStore } from "./runs.js";
 
 const digest = (s: string) => createHash("sha256").update(s).digest();
@@ -16,6 +17,13 @@ export type AppOptions = {
   maxBodyBytes?: number;
   /** How long a completed run is kept for `Idempotency-Key` replays. */
   idempotencyTtlMs?: number;
+  /**
+   * Request middleware for `/v1/*` and `/openapi.json`, run before the bearer token check. A middleware that
+   * returns a response ends the request, so it can add its own authentication, quotas or audit logging.
+   */
+  middleware?: MiddlewareHandler[];
+  /** Limits the requests of each caller (each bearer token) to `perSecond`, with a `burst`. Over the limit: `429`. Off by default. */
+  rateLimit?: RateLimitOptions;
   /** Finished runs of the API are saved here, and listed at `GET /v1/runs`. In memory by default. */
   runs?: RunStore;
   /** What a saved run keeps. `trace` (default) is status, timing and errors. `full` adds inputs and node results. */
@@ -27,7 +35,7 @@ export type AppOptions = {
 };
 
 /** HTTP surface over an Engine. */
-export function createApp({ engine, tokens = [], maxBodyBytes = 1_000_000, idempotencyTtlMs = 600_000, runs = memoryRunStore(), recordRuns = "trace", channels = [], log = console.log }: AppOptions): Hono {
+export function createApp({ engine, tokens = [], maxBodyBytes = 1_000_000, idempotencyTtlMs = 600_000, runs = memoryRunStore(), recordRuns = "trace", middleware = [], rateLimit: limit, channels = [], log = console.log }: AppOptions): Hono {
   const app = new Hono();
   const idempotent = createIdempotencyStore<RunResult>(idempotencyTtlMs);
   app.onError((err, c) => {
@@ -50,10 +58,13 @@ export function createApp({ engine, tokens = [], maxBodyBytes = 1_000_000, idemp
     const ok = tokens.map((t) => timingSafeEqual(given, digest(t))).some(Boolean);
     return ok ? next() : c.json({ error: "unauthorized" }, 401);
   };
-  app.use("/v1/*", auth);
+  // The rate limit comes after the token check, so only callers with a valid token get a bucket.
+  const guard: MiddlewareHandler[] = [...middleware, auth, ...(limit ? [rateLimit(limit)] : [])];
+  for (const h of guard) app.use("/v1/*", h);
 
   // The spec lists every loaded flow with its input schema, so it needs the same token as the API.
-  app.get("/openapi.json", auth, (c) => c.json(buildOpenApi(engine.flows())));
+  for (const h of guard) app.use("/openapi.json", h);
+  app.get("/openapi.json", (c) => c.json(buildOpenApi(engine.flows())));
 
   app.get("/v1/flows", (c) => c.json({ flows: engine.flows() }));
 

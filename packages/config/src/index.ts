@@ -59,6 +59,8 @@ export const ConfigSchema = z.object({
     idempotencyTtlMs: z.number().positive().default(600_000),
     /** Largest accepted request body. */
     maxBodyBytes: z.number().int().positive().default(1_000_000),
+    /** Limits the requests of each bearer token. Off unless set. */
+    rateLimit: z.object({ perSecond: z.number().positive(), burst: z.number().positive().optional() }).optional(),
     /** History of finished runs, listed at `GET /v1/runs`. */
     runs: z.object({
       store: z.enum(["memory", "file"]).default("memory"),

@@ -60,7 +60,7 @@ if (validateOnly) {
   process.exit(0);
 }
 
-const app = createApp({ engine: eng, channels: chs, tokens: config.server.auth.tokens, maxBodyBytes: config.server.maxBodyBytes, idempotencyTtlMs: config.server.idempotencyTtlMs, runs: config.server.runs.store === "file" ? fileRunStore(config.server.runs.path, config.server.runs.max) : memoryRunStore(config.server.runs.max), recordRuns: config.server.runs.record });
+const app = createApp({ engine: eng, channels: chs, tokens: config.server.auth.tokens, maxBodyBytes: config.server.maxBodyBytes, idempotencyTtlMs: config.server.idempotencyTtlMs, runs: config.server.runs.store === "file" ? fileRunStore(config.server.runs.path, config.server.runs.max) : memoryRunStore(config.server.runs.max), recordRuns: config.server.runs.record, rateLimit: config.server.rateLimit });
 if (!config.server.auth.tokens.length) console.warn("milford: no auth tokens configured, the API is open");
 const server = serve({ fetch: app.fetch, port: config.server.port }, (i) => console.log(`milford: ${flows.length} flow(s), ${chs.length} channel(s), listening on :${i.port}`));
 for (const ch of chs) await ch.start();

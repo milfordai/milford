@@ -41,6 +41,7 @@ paths:
             application/json:
               schema: { type: object, additionalProperties: true }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
   /v1/flows:
     get:
       operationId: listFlows
@@ -58,6 +59,7 @@ paths:
                     type: array
                     items: { $ref: "#/components/schemas/FlowSummary" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
   /v1/runs:
     get:
       operationId: listRuns
@@ -89,6 +91,7 @@ paths:
                     type: array
                     items: { $ref: "#/components/schemas/RunSummary" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
   /v1/runs/{id}:
     get:
       operationId: getRun
@@ -107,6 +110,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/RunRecord" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
         "404":
           description: Unknown run, or one that is no longer kept.
           content:
@@ -184,6 +188,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
         "404":
           description: Unknown flow id.
           content:
@@ -271,6 +276,15 @@ components:
   responses:
     Unauthorized:
       description: The bearer token is missing or wrong.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    TooManyRequests:
+      description: The caller is over the rate limit set by `server.rateLimit`. Retry after the delay in `Retry-After`.
+      headers:
+        Retry-After:
+          description: Seconds to wait.
+          schema: { type: string }
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }

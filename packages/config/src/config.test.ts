@@ -77,4 +77,11 @@ describe("mcp config", () => {
     expect(f.value.config.server.runs).toMatchObject({ store: "file", path: "/cfg/history/runs.jsonl", record: "full" });
     expect(parseConfig("server: { runs: { record: everything } }", "/cfg", {}, read).ok).toBe(false);
   });
+  it("reads an optional rate limit and rejects a non-positive one", () => {
+    expect(parseConfig("{}", "/", {}, read).ok && (parseConfig("{}", "/", {}, read) as { value: { config: { server: { rateLimit?: unknown } } } }).value.config.server.rateLimit).toBeUndefined();
+    const r = parseConfig("server: { rateLimit: { perSecond: 5, burst: 10 } }", "/", {}, read);
+    if (!r.ok) throw new Error(r.error);
+    expect(r.value.config.server.rateLimit).toEqual({ perSecond: 5, burst: 10 });
+    expect(parseConfig("server: { rateLimit: { perSecond: 0 } }", "/", {}, read).ok).toBe(false);
+  });
 });
