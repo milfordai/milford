@@ -1,7 +1,7 @@
 {
-  "name": "@loage/example-error-classification",
+  "name": "@milford/example-error-classification",
   "private": true,
   "type": "module",
   "scripts": { "typecheck": "tsc --noEmit", "test": "vitest run" },
-  "dependencies": { "@loage/core": "workspace:*" }
+  "dependencies": { "@milford/core": "workspace:*" }
 }

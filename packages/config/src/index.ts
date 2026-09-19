@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import type { Flow, ProviderConfig, Result } from "@loage/core";
+import type { Flow, ProviderConfig, Result } from "@milford/core";
 import { parse } from "yaml";
 import { z } from "zod";
 
@@ -31,11 +31,11 @@ export const ConfigSchema = z.object({
     rateLimit: z.object({ perSecond: z.number().positive(), burst: z.number().positive().optional() }).optional(),
   })).default([]),
   flows: z.array(z.object({ id: z.string().optional(), file: z.string() })).default([]),
-  /** Chat and webhook entry points. Each is validated by @loage/channels when the server starts. */
+  /** Chat and webhook entry points. Each is validated by @milford/channels when the server starts. */
   channels: z.array(z.looseObject({ id: z.string(), type: z.string(), flow: z.string() })).default([]),
   /** Other MCP servers that `mcp` nodes can call (Streamable HTTP). */
   mcpServers: z.array(z.object({ id: z.string(), url: z.string(), headers: z.record(z.string(), z.string()).default({}) })).default([]),
-  /** The `loage-mcp` server. Nothing is exposed unless listed in `expose`. */
+  /** The `milford-mcp` server. Nothing is exposed unless listed in `expose`. */
   mcp: z.object({
     /** Flow ids exposed as MCP tools. */
     expose: z.array(z.string()).default([]),

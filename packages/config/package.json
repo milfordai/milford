@@ -1,12 +1,12 @@
 {
-  "name": "@loage/config",
+  "name": "@milford/config",
   "version": "0.0.1",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
     "dist",
-    "loage.config.schema.json"
+    "milford.config.schema.json"
   ],
   "scripts": {
     "build": "rm -rf dist && tsc -p tsconfig.build.json && node dist/gen-schema.js",
@@ -14,23 +14,23 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@loage/core": "workspace:*",
+    "@milford/core": "workspace:*",
     "yaml": "^2.9.1",
     "zod": "^4.6.5"
   },
-  "description": "Loage config loader: YAML, environment interpolation, flow files and a JSON Schema.",
+  "description": "Milford config loader: YAML, environment interpolation, flow files and a JSON Schema.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/loage-ai/loage.git",
+    "url": "git+https://github.com/milfordai/milford.git",
     "directory": "packages/config"
   },
   "homepage": "https://loage.mintlify.site",
   "bugs": {
-    "url": "https://github.com/loage-ai/loage/issues"
+    "url": "https://github.com/milfordai/milford/issues"
   },
   "keywords": [
-    "loage",
+    "milford",
     "workflow",
     "config",
     "json-schema"

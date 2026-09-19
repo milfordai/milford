@@ -1,4 +1,4 @@
-import { createEngine, defaultRegistry, flow, type Engine } from "@loage/core";
+import { createEngine, defaultRegistry, flow, type Engine } from "@milford/core";
 import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { createChannels } from "./index.js";
@@ -47,7 +47,7 @@ describe("createChannels", () => {
 describe("webhook", () => {
   const secret = "0123456789abcdef";
   const ch = build({ id: "w", type: "webhook", flow: "echo", secret });
-  const sign = (body: string, ts = String(Math.floor(Date.now() / 1000)), key = secret) => ({ "x-loage-timestamp": ts, "x-loage-signature": `sha256=${createHmac("sha256", key).update(`${ts}.${body}`).digest("hex")}` });
+  const sign = (body: string, ts = String(Math.floor(Date.now() / 1000)), key = secret) => ({ "x-milford-timestamp": ts, "x-milford-signature": `sha256=${createHmac("sha256", key).update(`${ts}.${body}`).digest("hex")}` });
   const send = (body: string, headers: Record<string, string>) => ch.handle!(new Request("http://x/hooks/w", { method: "POST", body, headers }));
 
   it("runs the flow for a correctly signed request", async () => {
@@ -58,7 +58,7 @@ describe("webhook", () => {
   });
   it("rejects a bad signature, a wrong secret and a stale timestamp", async () => {
     const body = JSON.stringify({ text: "hi" });
-    expect((await send(body, { ...sign(body), "x-loage-signature": "sha256=00" })).status).toBe(401);
+    expect((await send(body, { ...sign(body), "x-milford-signature": "sha256=00" })).status).toBe(401);
     expect((await send(body, sign(body, undefined, "another-secret-value"))).status).toBe(401);
     expect((await send(body, sign(body, String(Math.floor(Date.now() / 1000) - 3600)))).status).toBe(401);
     expect((await send(body, {})).status).toBe(401);
@@ -80,7 +80,7 @@ describe("when the engine is busy", () => {
     const ch = build({ id: "w", type: "webhook", flow: "echo", secret }, { engine: busy() });
     const ts = String(Math.floor(Date.now() / 1000));
     const sig = `sha256=${createHmac("sha256", secret).update(`${ts}.{}`).digest("hex")}`;
-    expect((await ch.handle!(new Request("http://x/hooks/w", { method: "POST", body: "{}", headers: { "x-loage-timestamp": ts, "x-loage-signature": sig } }))).status).toBe(503);
+    expect((await ch.handle!(new Request("http://x/hooks/w", { method: "POST", body: "{}", headers: { "x-milford-timestamp": ts, "x-milford-signature": sig } }))).status).toBe(503);
   });
   it("tells a chat user to try again", async () => {
     const sent: string[] = [];

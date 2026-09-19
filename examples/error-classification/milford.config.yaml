@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=../../packages/config/loage.config.schema.json
+# yaml-language-server: $schema=../../packages/config/milford.config.schema.json
 providers:
   # Swap the type for `openai` (any compatible server), `typesafe` or `http` (an on-prem classifier)
   # without touching the flow.
@@ -12,5 +12,5 @@ flows:
   - { file: ./flow.json }
 server:
   port: 8080
-  auth: { tokens: ["${LOAGE_TOKEN}"] }
+  auth: { tokens: ["${MILFORD_TOKEN}"] }
 run: { timeoutMs: 30000 }

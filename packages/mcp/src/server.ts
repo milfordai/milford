@@ -1,4 +1,4 @@
-import type { Engine, Result } from "@loage/core";
+import type { Engine, Result } from "@milford/core";
 import { fromJsonSchema, McpServer } from "@modelcontextprotocol/server";
 
 export type McpOptions = {
@@ -25,7 +25,7 @@ export function createMcpFactory(engine: Engine, o: McpOptions): Result<() => Mc
   const log = o.log ?? console.error;
 
   const factory = () => {
-    const server = new McpServer({ name: "loage", version: "0.0.1" });
+    const server = new McpServer({ name: "milford", version: "0.0.1" });
     for (const id of new Set(o.expose)) {
       const flow = flows.get(id)!;
       const inputSchema = fromJsonSchema<Record<string, unknown>>(flow.input ?? { type: "object", additionalProperties: true });

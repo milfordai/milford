@@ -1,4 +1,4 @@
-import { createEngine, defaultRegistry, type Provider } from "@loage/core";
+import { createEngine, defaultRegistry, type Provider } from "@milford/core";
 import { readdirSync, readFileSync } from "node:fs";
 import { expect, it } from "vitest";
 

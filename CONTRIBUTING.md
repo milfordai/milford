@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping with Loage.
+Thanks for helping with Milford.
 
 ## Set up
 
@@ -29,4 +29,4 @@ The documentation is in `docs/` (Mintlify). A change that users can see (a node,
 
 ## Reporting bugs
 
-Open an [issue](https://github.com/loage-ai/loage/issues) with the version, your config (without secrets) and the steps to reproduce. For security problems, see [SECURITY.md](SECURITY.md).
+Open an [issue](https://github.com/milfordai/milford/issues) with the version, your config (without secrets) and the steps to reproduce. For security problems, see [SECURITY.md](SECURITY.md).

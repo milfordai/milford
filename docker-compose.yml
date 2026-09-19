@@ -1,13 +1,13 @@
 services:
-  loage:
+  milford:
     build: .
     ports: ["8080:8080"]
     volumes:
-      - ./loage.config.yaml:/config/loage.config.yaml:ro
+      - ./milford.config.yaml:/config/milford.config.yaml:ro
       - ./flows:/config/flows:ro
     environment:
-      - LOAGE_TOKEN
-      - LOAGE_MCP_TOKEN
+      - MILFORD_TOKEN
+      - MILFORD_MCP_TOKEN
       - ANTHROPIC_API_KEY
       - OPENAI_API_KEY
       - GROQ_API_KEY
@@ -19,10 +19,10 @@ services:
     profiles: ["mcp"]
     ports: ["8090:8090"]
     volumes:
-      - ./loage.config.yaml:/config/loage.config.yaml:ro
+      - ./milford.config.yaml:/config/milford.config.yaml:ro
       - ./flows:/config/flows:ro
     environment:
-      - LOAGE_MCP_TOKEN
+      - MILFORD_MCP_TOKEN
       - ANTHROPIC_API_KEY
       - OPENAI_API_KEY
     restart: unless-stopped

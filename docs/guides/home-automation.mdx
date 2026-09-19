@@ -29,13 +29,13 @@ The run result carries every decision with its options, probabilities and per-no
 ```bash
 cd examples/home-automation
 pnpm devices &          # fake device server on :9090
-export TYPESAFE_API_KEY=... LOAGE_TOKEN=change-me
-node ../../packages/server/dist/cli.js loage.config.yaml
+export TYPESAFE_API_KEY=... MILFORD_TOKEN=change-me
+node ../../packages/server/dist/cli.js milford.config.yaml
 ```
 
 ```bash
 curl -s localhost:8080/v1/flows/home/run \
-  -H "authorization: Bearer $LOAGE_TOKEN" \
+  -H "authorization: Bearer $MILFORD_TOKEN" \
   -d '{"input": {"command": "Lock up the whole house", "homeUrl": "http://127.0.0.1:9090", "rooms": ["kitchen", "garage", "whole-house"], "devices": ["front-door-lock", "coffee-machine"]}}'
 ```
 

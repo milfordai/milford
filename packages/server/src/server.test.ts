@@ -1,11 +1,11 @@
-import { createChannels } from "@loage/channels";
-import { createEngine, defaultRegistry, type Provider } from "@loage/core";
+import { createChannels } from "@milford/channels";
+import { createEngine, defaultRegistry, type Provider } from "@milford/core";
 import { createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { parse } from "yaml";
 import { describe, expect, it } from "vitest";
 import { createApp } from "./app.js";
-import { parseConfig } from "@loage/config";
+import { parseConfig } from "@milford/config";
 
 const yaml = `
 providers:
@@ -98,7 +98,7 @@ describe("webhook channels", () => {
   const app = createApp({ engine: engine.value, tokens: ["bearer"], channels: chs.value, log: () => {} });
   const signed = (body: string, key = secret) => {
     const ts = String(Math.floor(Date.now() / 1000));
-    return { "x-loage-timestamp": ts, "x-loage-signature": `sha256=${createHmac("sha256", key).update(`${ts}.${body}`).digest("hex")}` };
+    return { "x-milford-timestamp": ts, "x-milford-signature": `sha256=${createHmac("sha256", key).update(`${ts}.${body}`).digest("hex")}` };
   };
 
   it("accepts a signed request without a bearer token, and rejects a bad one", async () => {

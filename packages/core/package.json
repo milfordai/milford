@@ -1,5 +1,5 @@
 {
-  "name": "@loage/core",
+  "name": "@milford/core",
   "version": "0.0.1",
   "type": "module",
   "main": "dist/index.js",
@@ -15,19 +15,19 @@
   "dependencies": {
     "zod": "^4.6.5"
   },
-  "description": "Loage core: flow compiler, executor, built-in nodes and the provider port. No I/O, no vendor code.",
+  "description": "Milford core: flow compiler, executor, built-in nodes and the provider port. No I/O, no vendor code.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/loage-ai/loage.git",
+    "url": "git+https://github.com/milfordai/milford.git",
     "directory": "packages/core"
   },
   "homepage": "https://loage.mintlify.site",
   "bugs": {
-    "url": "https://github.com/loage-ai/loage/issues"
+    "url": "https://github.com/milfordai/milford/issues"
   },
   "keywords": [
-    "loage",
+    "milford",
     "workflow",
     "llm",
     "decision",

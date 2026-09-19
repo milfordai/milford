@@ -1,5 +1,5 @@
 // Generates flow.json with the TypeScript builder: `pnpm flow`.
-import { flow } from "@loage/core";
+import { flow } from "@milford/core";
 
 const classes: Record<string, { actions: string[]; noun: string }> = {
   lights: { actions: ["on", "off"], noun: "lights" },
@@ -10,7 +10,7 @@ const classes: Record<string, { actions: string[]; noun: string }> = {
   thermostats: { actions: ["warmer", "cooler"], noun: "thermostats" },
 };
 const NONE = "none_of_these";
-const p = "jev"; // provider id from loage.config.yaml; any provider that can decide works.
+const p = "jev"; // provider id from milford.config.yaml; any provider that can decide works.
 
 const f = flow("home")
   .node("in", "input")

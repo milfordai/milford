@@ -1,5 +1,5 @@
 {
-  "name": "@loage/channels",
+  "name": "@milford/channels",
   "version": "0.0.1",
   "type": "module",
   "main": "dist/index.js",
@@ -13,22 +13,22 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@loage/core": "workspace:*",
+    "@milford/core": "workspace:*",
     "zod": "^4.6.5"
   },
-  "description": "Loage channel adapters: Slack (Socket Mode), Telegram and signed webhooks.",
+  "description": "Milford channel adapters: Slack (Socket Mode), Telegram and signed webhooks.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/loage-ai/loage.git",
+    "url": "git+https://github.com/milfordai/milford.git",
     "directory": "packages/channels"
   },
   "homepage": "https://loage.mintlify.site",
   "bugs": {
-    "url": "https://github.com/loage-ai/loage/issues"
+    "url": "https://github.com/milfordai/milford/issues"
   },
   "keywords": [
-    "loage",
+    "milford",
     "slack",
     "telegram",
     "webhook",

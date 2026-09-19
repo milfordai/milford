@@ -1,11 +1,11 @@
 {
-  "name": "@loage/server",
+  "name": "@milford/server",
   "version": "0.0.1",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "loage-server": "dist/cli.js"
+    "milford-server": "dist/cli.js"
   },
   "files": [
     "dist"
@@ -17,29 +17,29 @@
   },
   "dependencies": {
     "@hono/node-server": "^2.1.1",
-    "@loage/channels": "workspace:*",
-    "@loage/config": "workspace:*",
-    "@loage/core": "workspace:*",
-    "@loage/mcp": "workspace:*",
-    "@loage/providers": "workspace:*",
+    "@milford/channels": "workspace:*",
+    "@milford/config": "workspace:*",
+    "@milford/core": "workspace:*",
+    "@milford/mcp": "workspace:*",
+    "@milford/providers": "workspace:*",
     "hono": "^4.13.8"
   },
   "devDependencies": {
     "yaml": "^2.9.1"
   },
-  "description": "Loage HTTP server: run flows over REST with server-sent events, idempotency keys and bearer auth.",
+  "description": "Milford HTTP server: run flows over REST with server-sent events, idempotency keys and bearer auth.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/loage-ai/loage.git",
+    "url": "git+https://github.com/milfordai/milford.git",
     "directory": "packages/server"
   },
   "homepage": "https://loage.mintlify.site",
   "bugs": {
-    "url": "https://github.com/loage-ai/loage/issues"
+    "url": "https://github.com/milfordai/milford/issues"
   },
   "keywords": [
-    "loage",
+    "milford",
     "workflow",
     "http",
     "sse",

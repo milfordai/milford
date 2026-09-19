@@ -3,7 +3,7 @@ title: "MCP"
 description: "Let external LLMs call your flows as MCP tools."
 ---
 
-Loage can act as a Model Context Protocol (MCP) server. External LLM clients such as Claude Desktop, Claude Code or your own agents connect to it and call your flows as tools. The MCP server is a separate program from the HTTP server. Both sit on the same core engine and read the same config file, and you can run either or both.
+Milford can act as a Model Context Protocol (MCP) server. External LLM clients such as Claude Desktop, Claude Code or your own agents connect to it and call your flows as tools. The MCP server is a separate program from the HTTP server. Both sit on the same core engine and read the same config file, and you can run either or both.
 
 ## Expose flows as tools
 
@@ -18,7 +18,7 @@ mcp:
   transport: http
   host: 0.0.0.0
   port: 8090
-  auth: { tokens: ["${LOAGE_MCP_TOKEN}"] }
+  auth: { tokens: ["${MILFORD_MCP_TOKEN}"] }
 ```
 
 The tool description and its arguments come from two optional fields of the flow:
@@ -55,14 +55,14 @@ If a node fails, the result is marked as an error and lists `errors` such as `"f
 ## Run the server
 
 ```bash
-node packages/mcp/dist/cli.js loage.config.yaml
+node packages/mcp/dist/cli.js milford.config.yaml
 ```
 
 The transport is set with `mcp.transport`:
 
 | Transport | Use it for | Notes |
 | --- | --- | --- |
-| `stdio` (default) | A client that starts Loage as a local process, such as Claude Desktop. | Logs go to stderr because stdout carries the protocol. |
+| `stdio` (default) | A client that starts Milford as a local process, such as Claude Desktop. | Logs go to stderr because stdout carries the protocol. |
 | `http` | Remote clients over Streamable HTTP. | Serves `/mcp`, and `/health` without a token. |
 
 The HTTP transport requires `mcp.auth.tokens` unless `mcp.host` is `127.0.0.1`, `localhost` or `::1`. The server refuses to start otherwise. It also refuses to start when `mcp.expose` is empty or names an unknown flow.
@@ -76,8 +76,8 @@ The HTTP transport requires `mcp.auth.tokens` unless `mcp.host` is `127.0.0.1`, 
 <Tabs>
   <Tab title="Claude Code">
     ```bash
-    claude mcp add --transport http loage http://localhost:8090/mcp \
-      --header "Authorization: Bearer $LOAGE_MCP_TOKEN"
+    claude mcp add --transport http milford http://localhost:8090/mcp \
+      --header "Authorization: Bearer $MILFORD_MCP_TOKEN"
     ```
   </Tab>
   <Tab title="Claude Desktop">
@@ -86,9 +86,9 @@ The HTTP transport requires `mcp.auth.tokens` unless `mcp.host` is `127.0.0.1`, 
     ```json
     {
       "mcpServers": {
-        "loage": {
+        "milford": {
           "command": "node",
-          "args": ["/absolute/path/to/packages/mcp/dist/cli.js", "/absolute/path/to/loage.config.yaml"],
+          "args": ["/absolute/path/to/packages/mcp/dist/cli.js", "/absolute/path/to/milford.config.yaml"],
           "env": { "ANTHROPIC_API_KEY": "sk-ant-..." }
         }
       }
@@ -99,7 +99,7 @@ The HTTP transport requires `mcp.auth.tokens` unless `mcp.host` is `127.0.0.1`, 
 
 ## Call other MCP servers
 
-The `mcp` node calls a tool on another MCP server, so a flow can reach systems that already publish MCP tools. Declare each server once under `mcpServers`, then refer to it by id. Loage connects to remote servers over Streamable HTTP. It does not start local stdio servers.
+The `mcp` node calls a tool on another MCP server, so a flow can reach systems that already publish MCP tools. Declare each server once under `mcpServers`, then refer to it by id. Milford connects to remote servers over Streamable HTTP. It does not start local stdio servers.
 
 ```yaml
 mcpServers:
@@ -116,7 +116,7 @@ mcpServers:
 
 ### Let a decision pick the tool
 
-The `tool` can be a template, so a `decision` node can choose which tool runs. The node then needs an `allow` list, and Loage refuses to call any tool outside it. Loading the flow fails when a templated `tool` has no `allow` list.
+The `tool` can be a template, so a `decision` node can choose which tool runs. The node then needs an `allow` list, and Milford refuses to call any tool outside it. Loading the flow fails when a templated `tool` has no `allow` list.
 
 ```json
 { "id": "route", "type": "decision", "config": { "provider": "classifier", "kind": "choice", "prompt": "Which system holds this?", "options": ["find_customer", "find_invoice"], "state": "{{input.question}}", "minConfidence": 0.6 } },
@@ -127,7 +127,7 @@ The graph stays fixed. A decision chooses among tools that you list, and nothing
 
 ## Limits
 
-- Tools only. Loage does not expose MCP resources or prompts, and the `mcp` node calls tools only.
+- Tools only. Milford does not expose MCP resources or prompts, and the `mcp` node calls tools only.
 - Runs use the shared `run.timeoutMs` and `run.maxConcurrentRuns` limits. Calls over the cap get an error result.
 - Authentication is static bearer tokens. Put the server behind a gateway for OIDC or mutual TLS.
 - MCP calls have no idempotency key.
