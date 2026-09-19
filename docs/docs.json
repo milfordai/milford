@@ -59,5 +59,13 @@
   },
   "background": {
     "decoration": "gradient"
+  },
+  "favicon": {
+    "light": "/docs/images/loage-02.png",
+    "dark": "/docs/images/loage-02.png"
+  },
+  "logo": {
+    "light": "/docs/images/loage-02.png",
+    "dark": "/docs/images/loage-02.png"
   }
 }
