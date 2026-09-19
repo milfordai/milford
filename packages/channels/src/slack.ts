@@ -12,7 +12,6 @@ export const slackConfig = z.object({
   botToken: z.string().startsWith("xoxb-"),
   /** Slack user ids (`U...`) allowed to run the flow. Required: channels are deny by default. */
   allow: z.array(z.string()).min(1),
-  apiBase: z.string().default("https://slack.com/api"),
 });
 
 type SlackEvent = { type: string; user?: string; text?: string; channel: string; ts: string; thread_ts?: string; channel_type?: string; subtype?: string; bot_id?: string };
@@ -29,7 +28,7 @@ export function slack(cfg: z.infer<typeof slackConfig>, deps: ChannelDeps): Chan
   const handle = createHandler({ id: cfg.id, type: "slack", engine: deps.engine, flow: cfg.flow, allow: cfg.allow, log, runTimeoutMs: deps.runTimeoutMs });
 
   const api = async (method: string, token: string, body?: object) => {
-    const res = await doFetch(`${cfg.apiBase}/${method}`, {
+    const res = await doFetch(`https://slack.com/api/${method}`, {
       method: "POST",
       headers: { authorization: `Bearer ${token}`, "content-type": body ? "application/json; charset=utf-8" : "application/x-www-form-urlencoded" },
       body: body && JSON.stringify(body),

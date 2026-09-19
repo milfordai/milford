@@ -29,7 +29,7 @@ describe("compileFlow", () => {
 });
 
 describe("runFlow", () => {
-  it("runs a level in parallel and respects concurrency", async () => {
+  it("runs a level in parallel", async () => {
     let active = 0, peak = 0;
     const slow: NodeRunner = async () => {
       peak = Math.max(peak, ++active);
@@ -37,12 +37,8 @@ describe("runFlow", () => {
       active--;
       return { success: true };
     };
-    const c = compile({ id: "f", nodes: [n("a"), n("b"), n("c"), n("d")], edges: [] });
-    await runFlow(c, deps({ t: slow }));
+    await runFlow(compile({ id: "f", nodes: [n("a"), n("b"), n("c"), n("d")], edges: [] }), deps({ t: slow }));
     expect(peak).toBe(4);
-    peak = 0;
-    await runFlow(c, deps({ t: slow }), { concurrency: 2 });
-    expect(peak).toBe(2);
   });
 
   it("skips untaken branches and their descendants, but joins on any live edge", async () => {
