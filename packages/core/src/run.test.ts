@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { compileFlow, runFlow, type Flow, type NodeRunner } from "./index.js";
+import { compileFlow, lruCache, Registry, runFlow, type Flow, type NodeContext, type NodeResult, type RunDeps } from "./index.js";
+
+type NodeRunner = (ctx: NodeContext, up: Record<string, NodeResult>) => Promise<NodeResult>;
+const deps = (runners: Record<string, NodeRunner>, extra: Partial<RunDeps> = {}): RunDeps => {
+  const registry = new Registry();
+  for (const [t, run] of Object.entries(runners)) registry.registerNode(t, { run });
+  return { registry, ...extra };
+};
 
 const n = (id: string, type = "t") => ({ id, type });
 const compile = (f: Flow) => {
@@ -31,10 +38,10 @@ describe("runFlow", () => {
       return { success: true };
     };
     const c = compile({ id: "f", nodes: [n("a"), n("b"), n("c"), n("d")], edges: [] });
-    await runFlow(c, { runners: { t: slow } });
+    await runFlow(c, deps({ t: slow }));
     expect(peak).toBe(4);
     peak = 0;
-    await runFlow(c, { runners: { t: slow }, concurrency: 2 });
+    await runFlow(c, deps({ t: slow }), { concurrency: 2 });
     expect(peak).toBe(2);
   });
 
@@ -50,7 +57,7 @@ describe("runFlow", () => {
         { from: "after-no", to: "join" },
       ],
     });
-    const r = await runFlow(c, { runners: { decide: async () => ({ success: true, data: { choice: "y" } }), t: echo } });
+    const r = await runFlow(c, deps({ decide: async () => ({ success: true, data: { choice: "y" } }), t: echo }));
     expect(Object.fromEntries(Object.entries(r.nodes).map(([k, v]) => [k, v.status]))).toEqual({
       d: "done", yes: "done", no: "skipped", "after-no": "skipped", join: "done",
     });
@@ -59,7 +66,7 @@ describe("runFlow", () => {
   it("returns errors instead of throwing, skips downstream, emits events", async () => {
     const events: string[] = [];
     const c = compile({ id: "f", nodes: [n("a", "boom"), n("b")], edges: [{ from: "a", to: "b" }] });
-    const r = await runFlow(c, { runners: { boom: async () => { throw new Error("bad"); }, t: echo }, onEvent: (e) => events.push(`${e.type}:${e.nodeId}`) });
+    const r = await runFlow(c, deps({ boom: async () => { throw new Error("bad"); }, t: echo }), { onEvent: (e) => events.push(`${e.type}:${"nodeId" in e ? e.nodeId : ""}`) });
     expect(r.ok).toBe(false);
     expect(r.nodes.a?.result?.error).toBe("bad");
     expect(r.nodes.b?.status).toBe("skipped");
@@ -69,7 +76,38 @@ describe("runFlow", () => {
   it("aborts on timeout", async () => {
     const wait: NodeRunner = (ctx) => new Promise((res) => ctx.signal.addEventListener("abort", () => res({ success: false, error: "aborted" })));
     const c = compile({ id: "f", nodes: [n("a")], edges: [] });
-    const r = await runFlow(c, { runners: { t: wait }, timeoutMs: 20 });
+    const r = await runFlow(c, deps({ t: wait }), { timeoutMs: 20 });
     expect(r.ok).toBe(false);
+  });
+
+  it('join "all" requires every incoming edge to be live', async () => {
+    const yes = { path: "data.v", op: "eq" as const, value: 1 };
+    const mk = (join?: "all") => compile({
+      id: "f",
+      nodes: [n("a", "a"), n("b", "b"), { ...n("c"), join }],
+      edges: [{ from: "a", to: "c", when: yes }, { from: "b", to: "c" }],
+    });
+    const runners = { a: async () => ({ success: true, data: { v: 2 } }), b: async () => ({ success: true }), t: echo };
+    expect((await runFlow(mk(), deps(runners))).nodes.c?.status).toBe("done");
+    expect((await runFlow(mk("all"), deps(runners))).nodes.c?.status).toBe("skipped");
+  });
+
+  it("retries failed nodes with backoff", async () => {
+    let calls = 0;
+    const flaky: NodeRunner = async () => (++calls < 3 ? { success: false, error: "no" } : { success: true });
+    const c = compile({ id: "f", nodes: [{ ...n("a"), retry: { attempts: 3, backoffMs: 1 } }], edges: [] });
+    expect((await runFlow(c, deps({ t: flaky }))).ok).toBe(true);
+    expect(calls).toBe(3);
+  });
+
+  it("memoizes successful results when cache is on", async () => {
+    let calls = 0;
+    const count: NodeRunner = async () => ({ success: true, output: String(++calls) });
+    const c = compile({ id: "f", nodes: [{ ...n("a"), cache: true }], edges: [] });
+    const d = deps({ t: count }, { cache: lruCache() });
+    await runFlow(c, d);
+    const r = await runFlow(c, d);
+    expect(calls).toBe(1);
+    expect(r.nodes.a?.result?.output).toBe("1");
   });
 });

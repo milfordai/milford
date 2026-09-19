@@ -1,3 +1,11 @@
 export * from "./types.js";
 export * from "./compile.js";
 export * from "./run.js";
+export * from "./registry.js";
+export * from "./template.js";
+export * from "./cache.js";
+export * from "./providers.js";
+export * from "./engine.js";
+export * from "./builder.js";
+export * from "./presets.js";
+export { defaultRegistry, NONE } from "./nodes/index.js";
