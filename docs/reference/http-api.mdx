@@ -45,6 +45,8 @@ The response is `200` with the run result, even when a node failed. Check `ok`.
 | 400 | The body is not JSON, or `input` is not an object. |
 | 401 | The token is missing or wrong. |
 | 404 | Unknown flow id. |
+| 413 | The body is larger than `server.maxBodyBytes`. |
+| 503 | `server.maxConcurrentRuns` runs are already active. Retry after the `Retry-After` delay. |
 
 ### Server-sent events
 

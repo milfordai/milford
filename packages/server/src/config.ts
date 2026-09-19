@@ -21,14 +21,24 @@ export const FlowSchema = z.object({
 });
 
 export const ConfigSchema = z.object({
-  providers: z.array(z.looseObject({ id: z.string(), type: z.string(), fallback: z.array(z.string()).optional() })).default([]),
+  providers: z.array(z.looseObject({
+    id: z.string(),
+    type: z.string(),
+    fallback: z.array(z.string()).optional(),
+    circuitBreaker: z.object({ failures: z.number().int().positive(), resetMs: z.number().positive() }).optional(),
+    rateLimit: z.object({ perSecond: z.number().positive(), burst: z.number().positive().optional() }).optional(),
+  })).default([]),
   flows: z.array(z.object({ id: z.string().optional(), file: z.string() })).default([]),
   server: z.object({
     port: z.number().int().default(8080),
     auth: z.object({ tokens: z.array(z.string()).default([]) }).default({ tokens: [] }),
     /** Per-run timeout in milliseconds. */
-    runTimeoutMs: z.number().positive().optional(),
-  }).default({ port: 8080, auth: { tokens: [] } }),
+    runTimeoutMs: z.number().positive().default(60_000),
+    /** Runs allowed at once; more get 503 with Retry-After. */
+    maxConcurrentRuns: z.number().int().positive().default(64),
+    /** Largest accepted request body. */
+    maxBodyBytes: z.number().int().positive().default(1_000_000),
+  }).default({ port: 8080, auth: { tokens: [] }, runTimeoutMs: 60_000, maxConcurrentRuns: 64, maxBodyBytes: 1_000_000 }),
 });
 export type Config = z.infer<typeof ConfigSchema>;
 
