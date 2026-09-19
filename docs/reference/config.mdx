@@ -1,0 +1,43 @@
+---
+title: "Configuration"
+description: "The loage.config.yaml file."
+---
+
+The server reads one YAML file. Pass its path as the first argument or set `LOAGE_CONFIG`. The default is `loage.config.yaml`.
+
+```yaml
+# yaml-language-server: $schema=./node_modules/@loage/server/loage.config.schema.json
+providers:
+  - { id: main-llm, type: anthropic, apiKey: "${ANTHROPIC_API_KEY}", model: claude-sonnet-5 }
+  - { id: fast-llm, type: openai, baseUrl: https://api.groq.com/openai/v1, apiKey: "${GROQ_API_KEY}", model: llama-3.3-70b-versatile }
+flows:
+  - { file: ./flows/triage.json }
+server:
+  port: 8080
+  auth: { tokens: ["${LOAGE_TOKEN}"] }
+  runTimeoutMs: 30000
+```
+
+## Environment variables
+
+`${NAME}` inside any string is replaced from the environment, so the file holds no secrets. The server refuses to start and lists every variable that is not set.
+
+<Warning>
+  Quote strings that contain `${...}` inside flow collections such as `[...]` and `{...}`. YAML treats braces in unquoted values as syntax.
+</Warning>
+
+## Keys
+
+<ParamField body="providers" type="object[]">List of [providers](/providers/overview). Each needs `id` and `type`. Other keys depend on the type.</ParamField>
+<ParamField body="flows" type="object[]">List of `{ file, id? }`. `file` is a flow JSON path relative to the config file. `id` overrides the id inside the file.</ParamField>
+<ParamField body="server.port" type="number" default="8080">Listen port.</ParamField>
+<ParamField body="server.auth.tokens" type="string[]" default="[]">Accepted bearer tokens. With none configured, the API is open and the server logs a warning.</ParamField>
+<ParamField body="server.runTimeoutMs" type="number">Per-run timeout.</ParamField>
+
+## Validation at startup
+
+The server compiles every flow before it listens. It reports unknown providers, providers that lack a needed capability, invalid node configs, cycles and unknown node types, and exits without serving.
+
+## JSON Schema
+
+`packages/server/loage.config.schema.json` is generated from the config schema on every build. Point your editor's YAML language server at it for completion.

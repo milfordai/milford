@@ -1,0 +1,79 @@
+---
+title: "Providers"
+description: "Configure the backends that answer chat and decision calls."
+---
+
+A provider is a named backend with capabilities: `chat`, `decide`, or both. Nodes reach models only through providers, and the core library knows no vendor. Jev is one adapter among several and is never required.
+
+| Type | Capabilities | Notes |
+| --- | --- | --- |
+| `openai` | chat, decide | Any OpenAI-compatible server through `baseUrl`. Decisions use `response_format: json_schema`. |
+| `anthropic` | chat, decide | Decisions use forced tool use with a JSON schema. |
+| `typesafe` | decide | Jev. Probabilities and confidence. Batches decisions that share a state. |
+| `http` | decide, chat | Any JSON endpoint, with a request template and JSONPath mapping. |
+| `sagemaker` | decide | `InvokeEndpoint` signed with SigV4 over `fetch`. Same mapping as `http`. |
+
+LLM-backed decisions ask the model for a confidence value. It is the model's own estimate, not a calibrated probability. Use `typesafe` or a trained classifier when you need real probabilities.
+
+## Common options
+
+<ParamField body="id" type="string" required>Name that nodes refer to.</ParamField>
+<ParamField body="type" type="string" required>One of the types above.</ParamField>
+<ParamField body="fallback" type="string[]">Provider ids to try, in order, when this provider returns an error.</ParamField>
+
+## openai
+
+<ParamField body="apiKey" type="string">Sent as a bearer token. Optional for local servers.</ParamField>
+<ParamField body="baseUrl" type="string" default="https://api.openai.com/v1">Base URL, for example a Groq or local endpoint.</ParamField>
+<ParamField body="model" type="string">Default model. A node's `model` overrides it.</ParamField>
+
+## anthropic
+
+<ParamField body="apiKey" type="string" required>API key.</ParamField>
+<ParamField body="baseUrl" type="string" default="https://api.anthropic.com">Base URL.</ParamField>
+<ParamField body="model" type="string">Default model.</ParamField>
+<ParamField body="maxTokens" type="number" default="1024">Maximum output tokens.</ParamField>
+
+## typesafe
+
+<ParamField body="apiKey" type="string" required>API key.</ParamField>
+<ParamField body="baseUrl" type="string" default="https://api.typesafe.ai">Base URL.</ParamField>
+<ParamField body="model" type="string" default="jev-latest">Model.</ParamField>
+
+## http and sagemaker
+
+Both send a templated JSON request and map the response with JSONPath expressions.
+
+<ParamField body="request" type="object">Body template. Variables: `kind`, `prompt`, `state`, `options`, `model`. A value that is exactly `"{{options}}"` keeps its list type.</ParamField>
+<ParamField body="map" type="object">
+  JSONPath expressions (`$.a.b[0].c`): `choice`, `probabilities`, `confidence`, `score`, `noul`, `text`. `probabilities` is an object of option to probability, or an array aligned with the request options. Without `choice`, the highest probability wins. Without `confidence`, the winning probability is used.
+</ParamField>
+
+`http` also takes `url` (required), `headers`, and `capabilities` (default `["decide"]`). `sagemaker` takes `endpoint`, `region`, `accessKeyId`, `secretAccessKey` and an optional `sessionToken`.
+
+```yaml
+providers:
+  - id: intent-clf
+    type: sagemaker
+    endpoint: my-endpoint
+    region: eu-west-1
+    accessKeyId: "${AWS_ACCESS_KEY_ID}"
+    secretAccessKey: "${AWS_SECRET_ACCESS_KEY}"
+    request: { text: "{{state}}", labels: "{{options}}" }
+    map: { choice: "$.predictions[0].label", probabilities: "$.predictions[0].scores" }
+```
+
+## Fallback and local-first
+
+`fallback` lets a flow prefer a local provider and fall back to a cloud one, or the reverse. When a provider has `decideMany` and fails, the engine retries each decision through the fallback chain.
+
+## Add your own provider
+
+Register a factory that returns a `Provider`. Return an error result for an invalid config.
+
+```ts
+registry.registerProvider("my-clf", (config, { fetch }) => ({
+  ok: true,
+  value: { id: config.id, type: "my-clf", capabilities: ["decide"], decide: async (req) => { /* ... */ } },
+}));
+```

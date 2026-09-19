@@ -1,0 +1,65 @@
+---
+title: "Flows"
+description: "The flow model and how the executor runs it."
+---
+
+A flow is plain JSON. It has no positions or UI types, so you can write it by hand, generate it with the TypeScript `flow()` builder, and keep it in git.
+
+```json
+{
+  "id": "triage",
+  "nodes": [{ "id": "in", "type": "input" }],
+  "edges": [{ "from": "in", "to": "next", "when": { "path": "data.choice", "op": "eq", "value": "billing" } }]
+}
+```
+
+## Nodes
+
+Each node has an `id`, a `type` and a `config`. Optional fields apply to every node type:
+
+<ParamField body="join" type="&#x22;any&#x22; | &#x22;all&#x22;" default="any">
+  With `any`, the node runs when at least one incoming edge is live. With `all`, every incoming edge must be live.
+</ParamField>
+<ParamField body="retry" type="{ attempts, backoffMs }">
+  Retries a failed node with exponential backoff. `backoffMs` defaults to 200.
+</ParamField>
+<ParamField body="timeoutMs" type="number">
+  Aborts the node through its `AbortSignal` after this many milliseconds.
+</ParamField>
+<ParamField body="cache" type="boolean">
+  Memoizes successful results, keyed by node type, config and upstream results. The default cache is an in-memory LRU.
+</ParamField>
+<ParamField body="meta" type="unknown">
+  Ignored by the engine. An editor can store layout here.
+</ParamField>
+
+## Edges and branching
+
+An edge connects `from` to `to`. An edge with `when` is live only if the condition holds on the upstream node's result. `path` reads into the result (`data.choice`, `data.confidence`, `output`), and `op` is one of `eq`, `neq`, `gt`, `gte`, `lt`, `lte`.
+
+An edge is skipped when its source failed, was skipped, or its condition is false. A node whose incoming edges are all skipped is skipped as well, and so on downstream. Set `join: "all"` when a node needs every input, for example when it acts only if a class matched and the action is known.
+
+## Execution
+
+`compileFlow` runs once at startup. It checks node types and configs, provider capabilities, duplicate ids, unknown edge targets and cycles, then sorts nodes into levels. Runs walk the precomputed levels.
+
+- Nodes in one level run in parallel, up to the `concurrency` option.
+- A failed node does not stop unrelated branches. Its downstream nodes are skipped, and `ok` is `false` in the result.
+- A run supports a `timeoutMs` and an `AbortSignal`. Both reach every `fetch` and provider call.
+- Nodes return results and do not throw. A thrown error is caught and recorded as a node failure.
+
+## Templates
+
+Strings in `prompt`, `llm`, `decision` and `http` configs accept `{{path}}` placeholders. The scope holds the run input under `input` and each upstream node under its id.
+
+| Template | Resolves to |
+| --- | --- |
+| `{{input.name}}` | A field of the run input. |
+| `{{draft}}` | The `output` of upstream node `draft`. |
+| `{{team.data.choice}}` | A field of an upstream node's `data`. |
+
+An unknown variable fails the node instead of rendering an empty string. When a value is exactly one placeholder, such as `"{{input.devices}}"` in an `http` body or a decision's `options`, it keeps its type (array, number) instead of becoming a string.
+
+## Events
+
+The `onEvent` callback receives `node:start`, `node:done`, `node:error`, `node:skipped` and `provider:call`. Events are plain data. The HTTP server streams them as server-sent events.

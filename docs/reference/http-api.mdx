@@ -1,0 +1,57 @@
+---
+title: "HTTP API"
+description: "Endpoints exposed by @loage/server."
+---
+
+Every `/v1` endpoint requires `Authorization: Bearer <token>` when `server.auth.tokens` is set. `/health` needs no token.
+
+## GET /health
+
+```json
+{ "status": "ok" }
+```
+
+## GET /v1/flows
+
+```json
+{ "flows": [{ "id": "triage", "nodes": 6 }] }
+```
+
+## POST /v1/flows/:id/run
+
+Runs a flow. The body is JSON with an optional `input` object.
+
+```bash
+curl -s localhost:8080/v1/flows/triage/run \
+  -H "authorization: Bearer $LOAGE_TOKEN" \
+  -d '{"input": {"text": "My invoice is wrong"}}'
+```
+
+The response is `200` with the run result, even when a node failed. Check `ok`.
+
+```json
+{
+  "ok": true,
+  "runId": "5c1f...",
+  "nodes": { "team": { "status": "done", "ms": 212.4, "result": { "success": true, "output": "billing", "data": { "choice": "billing", "confidence": 0.93 } } } },
+  "output": { "success": true, "output": "Route to billing." }
+}
+```
+
+`nodes` is the trace: status (`done`, `error` or `skipped`), timing and result for each node, including decision probabilities.
+
+| Status | Meaning |
+| --- | --- |
+| 400 | The body is not JSON, or `input` is not an object. |
+| 401 | The token is missing or wrong. |
+| 404 | Unknown flow id. |
+
+### Server-sent events
+
+Send `Accept: text/event-stream` to receive events as they happen. Each event name matches its `type`: `node:start`, `node:done`, `node:error`, `node:skipped`, `provider:call`. The last event is `result`, which holds the run result. Closing the connection cancels the run.
+
+```bash
+curl -N localhost:8080/v1/flows/triage/run \
+  -H "authorization: Bearer $LOAGE_TOKEN" -H "accept: text/event-stream" \
+  -d '{"input": {"text": "My invoice is wrong"}}'
+```
