@@ -1,6 +1,0 @@
-# yaml-language-server: $schema=../../packages/config/loage.config.schema.json
-flows:
-  - { file: ./hello.json }
-server:
-  port: 8080
-  auth: { tokens: ["${LOAGE_TOKEN}"] }

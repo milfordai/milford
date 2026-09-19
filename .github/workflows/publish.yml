@@ -1,0 +1,25 @@
+name: publish
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: read
+jobs:
+  npm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm, registry-url: "https://registry.npmjs.org" }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm test
+      - name: The tag must match the package version
+        run: test "v$(node -p "require('./packages/core/package.json').version")" = "$GITHUB_REF_NAME"
+      - name: Add the license to each package
+        run: for d in packages/*; do cp LICENSE "$d/"; done
+      # pnpm swaps workspace:* for the exact version and skips private packages (the examples).
+      - run: pnpm -r publish --access public --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

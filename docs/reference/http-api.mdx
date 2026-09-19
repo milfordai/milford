@@ -11,7 +11,7 @@ Every `/v1` endpoint requires `Authorization: Bearer <token>` when `server.auth.
 
 ```bash
 curl -s localhost:8080/v1/flows/triage/run \
-  -H "authorization: Bearer $LOAGE_TOKEN" \
+  -H "authorization: Bearer $MILFORD_TOKEN" \
   -d '{"input": {"text": "My invoice is wrong"}}'
 ```
 
@@ -38,6 +38,6 @@ Send `Accept: text/event-stream` to receive events as they happen. Each event na
 
 ```bash
 curl -N localhost:8080/v1/flows/triage/run \
-  -H "authorization: Bearer $LOAGE_TOKEN" -H "accept: text/event-stream" \
+  -H "authorization: Bearer $MILFORD_TOKEN" -H "accept: text/event-stream" \
   -d '{"input": {"text": "My invoice is wrong"}}'
 ```

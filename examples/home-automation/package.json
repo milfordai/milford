@@ -1,5 +1,5 @@
 {
-  "name": "@loage/example-home-automation",
+  "name": "@milford/example-home-automation",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,5 +8,5 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
-  "dependencies": { "@loage/core": "workspace:*", "@loage/providers": "workspace:*" }
+  "dependencies": { "@milford/core": "workspace:*", "@milford/providers": "workspace:*" }
 }

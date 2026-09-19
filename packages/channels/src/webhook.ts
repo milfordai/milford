@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { TOO_MANY_RUNS } from "@loage/core";
+import { TOO_MANY_RUNS } from "@milford/core";
 import { z } from "zod";
 import type { Channel, ChannelDeps } from "./types.js";
 
@@ -7,8 +7,8 @@ export const webhookConfig = z.object({ id: z.string(), type: z.literal("webhook
 const TOLERANCE_S = 300;
 
 /**
- * Signed inbound webhook. The caller sends `x-loage-timestamp` (unix seconds) and
- * `x-loage-signature: sha256=<hex HMAC-SHA256(secret, "<timestamp>.<raw body>")>`.
+ * Signed inbound webhook. The caller sends `x-milford-timestamp` (unix seconds) and
+ * `x-milford-signature: sha256=<hex HMAC-SHA256(secret, "<timestamp>.<raw body>")>`.
  * The JSON body becomes the flow input; the response carries the flow output.
  */
 export function webhook(cfg: z.infer<typeof webhookConfig>, deps: ChannelDeps): Channel {
@@ -20,8 +20,8 @@ export function webhook(cfg: z.infer<typeof webhookConfig>, deps: ChannelDeps): 
     stop: async () => {},
     async handle(req) {
       const raw = await req.text();
-      const ts = req.headers.get("x-loage-timestamp") ?? "";
-      const given = (req.headers.get("x-loage-signature") ?? "").replace(/^sha256=/, "");
+      const ts = req.headers.get("x-milford-timestamp") ?? "";
+      const given = (req.headers.get("x-milford-signature") ?? "").replace(/^sha256=/, "");
       const want = createHmac("sha256", cfg.secret).update(`${ts}.${raw}`).digest("hex");
       const fresh = Math.abs(Date.now() / 1000 - Number(ts)) <= TOLERANCE_S;
       const valid = given.length === want.length && timingSafeEqual(Buffer.from(given), Buffer.from(want));

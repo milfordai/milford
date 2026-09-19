@@ -72,7 +72,7 @@ Register a node type on a `Registry`. Nothing else changes.
 
 ```ts
 import { z } from "zod";
-import { defaultRegistry } from "@loage/core";
+import { defaultRegistry } from "@milford/core";
 
 const registry = defaultRegistry().registerNode("upper", {
   configSchema: z.object({ from: z.string() }),

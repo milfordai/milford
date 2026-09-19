@@ -1,6 +1,6 @@
 import { createHash, timingSafeEqual } from "node:crypto";
-import type { Channel } from "@loage/channels";
-import { TOO_MANY_RUNS, type Engine, type RunResult } from "@loage/core";
+import type { Channel } from "@milford/channels";
+import { TOO_MANY_RUNS, type Engine, type RunResult } from "@milford/core";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { streamSSE } from "hono/streaming";

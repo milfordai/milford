@@ -1,14 +1,44 @@
 {
-  "name": "@loage/config",
+  "name": "@milford/config",
   "version": "0.0.1",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "files": ["dist", "loage.config.schema.json"],
+  "files": [
+    "dist",
+    "milford.config.schema.json"
+  ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json && node dist/gen-schema.js",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && node dist/gen-schema.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
-  "dependencies": { "@loage/core": "workspace:*", "yaml": "^2.9.1", "zod": "^4.6.5" }
+  "dependencies": {
+    "@milford/core": "workspace:*",
+    "yaml": "^2.9.1",
+    "zod": "^4.6.5"
+  },
+  "description": "Milford config loader: YAML, environment interpolation, flow files and a JSON Schema.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/milfordai/milford.git",
+    "directory": "packages/config"
+  },
+  "homepage": "https://loage.mintlify.site",
+  "bugs": {
+    "url": "https://github.com/milfordai/milford/issues"
+  },
+  "keywords": [
+    "milford",
+    "workflow",
+    "config",
+    "json-schema"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
 }

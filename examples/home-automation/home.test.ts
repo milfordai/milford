@@ -1,4 +1,4 @@
-import { createEngine, defaultRegistry, type DecideRequest, type Decision, type Provider } from "@loage/core";
+import { createEngine, defaultRegistry, type DecideRequest, type Decision, type Provider } from "@milford/core";
 import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { startFakeDevices } from "./fake-devices.ts";

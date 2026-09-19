@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: Loage HTTP API
+  title: Milford HTTP API
   version: 0.0.1
   description: |
     Run flows, list them, and receive signed webhooks. The server is stateless and has no database.
@@ -137,7 +137,7 @@ paths:
       summary: Send a signed webhook
       description: |
         Runs the flow of a webhook channel. It does not use the bearer token. Sign the request instead:
-        `x-loage-signature` is `sha256=` plus the hex HMAC-SHA256 of `<x-loage-timestamp>.<raw body>` with the
+        `x-milford-signature` is `sha256=` plus the hex HMAC-SHA256 of `<x-milford-timestamp>.<raw body>` with the
         channel secret. Timestamps more than five minutes from the server clock are rejected.
       security: []
       parameters:
@@ -146,12 +146,12 @@ paths:
           required: true
           description: Channel id.
           schema: { type: string }
-        - name: x-loage-timestamp
+        - name: x-milford-timestamp
           in: header
           required: true
           description: Current Unix time in seconds.
           schema: { type: string }
-        - name: x-loage-signature
+        - name: x-milford-signature
           in: header
           required: true
           schema: { type: string }

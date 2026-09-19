@@ -1,23 +1,23 @@
 ---
 title: "Enterprise integration"
-description: "Call Loage from Spring and other services that consume a message queue."
+description: "Call Milford from Spring and other services that consume a message queue."
 ---
 
-This guide covers a common setup: a service reads errors from a queue such as IBM MQ, decides whether each error is new, and classifies it. The service keeps the queue and calls Loage for the decisions.
+This guide covers a common setup: a service reads errors from a queue such as IBM MQ, decides whether each error is new, and classifies it. The service keeps the queue and calls Milford for the decisions.
 
 ## Architecture
 
 ```text
-IBM MQ ──> Spring service ──POST /v1/flows/classify-error/run──> Loage ──> model or classifier
+IBM MQ ──> Spring service ──POST /v1/flows/classify-error/run──> Milford ──> model or classifier
               │  (JMS, transactions,                               (stateless)
               │   history lookup, storage)
               └──> writes the new error to its own database
 ```
 
-Loage runs as a separate container and speaks HTTP. This keeps three things where they already work well:
+Milford runs as a separate container and speaks HTTP. This keeps three things where they already work well:
 
-- **The queue stays in your service.** JMS transactions, acknowledgement, redelivery and dead-letter queues are what your framework handles. Loage has no queue client and no database.
-- **State stays in your service.** Loage does not store past errors. Your service looks them up and passes them in as input, or a flow calls your service with an `http` node.
+- **The queue stays in your service.** JMS transactions, acknowledgement, redelivery and dead-letter queues are what your framework handles. Milford has no queue client and no database.
+- **State stays in your service.** Milford does not store past errors. Your service looks them up and passes them in as input, or a flow calls your service with an `http` node.
 - **One engine serves every framework.** Spring, Quarkus, .NET and Python services call the same flows and get the same results. The [OpenAPI spec](/reference/http-api) describes the API, so you can generate a client for each language instead of writing SDKs by hand.
 
 ## The flow
@@ -29,7 +29,7 @@ The `examples/error-classification` example holds two decisions that run in para
 
 ```bash
 curl -s localhost:8080/v1/flows/classify-error/run \
-  -H "authorization: Bearer $LOAGE_TOKEN" \
+  -H "authorization: Bearer $MILFORD_TOKEN" \
   -H "idempotency-key: ID:414d51204d5152...-1" \
   -d '{"input": {
     "service": "payments",
@@ -49,10 +49,10 @@ The snippets in this section illustrate the pattern. They are not compiled in th
 
 ```java
 @Component
-class LoageClient {
+class MilfordClient {
     private final RestClient http;
 
-    LoageClient(@Value("${loage.url}") String url, @Value("${loage.token}") String token) {
+    MilfordClient(@Value("${milford.url}") String url, @Value("${milford.token}") String token) {
         var factory = new JdkClientHttpRequestFactory();
         factory.setReadTimeout(Duration.ofSeconds(40)); // longer than run.timeoutMs
         this.http = RestClient.builder()
@@ -77,7 +77,7 @@ class LoageClient {
 @JmsListener(destination = "ERRORS.IN")
 void onError(TextMessage message) throws JMSException {
     var error = parse(message.getText());
-    var result = loage.run("classify-error", Map.of(
+    var result = milford.run("classify-error", Map.of(
         "service", error.service(),
         "message", error.message(),
         "stackTrace", error.stackTrace(),
@@ -89,7 +89,7 @@ void onError(TextMessage message) throws JMSException {
 }
 ```
 
-Throwing from a transacted listener rolls the message back, so the queue redelivers it and the dead-letter policy applies. Loage does not need to know about any of this.
+Throwing from a transacted listener rolls the message back, so the queue redelivers it and the dead-letter policy applies. Milford does not need to know about any of this.
 
 ## Make retries safe
 
@@ -101,12 +101,12 @@ Queues deliver at least once, and every run can cost model calls. Send an `Idemp
 - Results are kept for `server.idempotencyTtlMs` (10 minutes by default) in the memory of one server instance. They are lost on restart and not shared between replicas.
 
 <Warning>
-  With several Loage replicas behind a load balancer, a retry can reach a different replica and run again. Route by the `Idempotency-Key` header if duplicate calls are costly, or accept the occasional duplicate.
+  With several Milford replicas behind a load balancer, a retry can reach a different replica and run again. Route by the `Idempotency-Key` header if duplicate calls are costly, or accept the occasional duplicate.
 </Warning>
 
 ## Deploy
 
-Run Loage as a central service with two or more replicas, or as a sidecar next to a service that needs low latency. Loage is stateless apart from the idempotency results, circuit breaker state and rate limits, which each replica keeps in memory. See [deployment](/reference/deployment).
+Run Milford as a central service with two or more replicas, or as a sidecar next to a service that needs low latency. Milford is stateless apart from the idempotency results, circuit breaker state and rate limits, which each replica keeps in memory. See [deployment](/reference/deployment).
 
 Set `run.timeoutMs`, `run.maxConcurrentRuns` and the provider `circuitBreaker` and `rateLimit` values for your traffic. A `503` response includes `Retry-After`. Your client should back off and retry with the same idempotency key.
 
@@ -119,4 +119,4 @@ Error messages and stack traces can contain personal data or secrets. Each `deci
 - Generated clients and a Spring Boot starter. Generate a client from the [OpenAPI spec](/reference/http-api) for now.
 - A shared idempotency store across replicas.
 - Metrics and trace propagation. Run logs are JSON lines on stdout.
-- Authentication other than static bearer tokens. Put Loage behind a gateway for OIDC or mutual TLS.
+- Authentication other than static bearer tokens. Put Milford behind a gateway for OIDC or mutual TLS.

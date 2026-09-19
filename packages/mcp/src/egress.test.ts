@@ -1,4 +1,4 @@
-import { createEngine, defaultRegistry, flow, type Flow } from "@loage/core";
+import { createEngine, defaultRegistry, flow, type Flow } from "@milford/core";
 import { afterEach, describe, expect, it } from "vitest";
 import { registerMcp } from "./egress.js";
 import { serveHttp } from "./http.js";
@@ -9,7 +9,7 @@ afterEach(async () => {
   while (open.length) await open.pop()!.close();
 });
 
-/** The remote MCP server: a Loage engine that exposes a few flows as tools, behind a bearer token. */
+/** The remote MCP server: a Milford engine that exposes a few flows as tools, behind a bearer token. */
 const remote = async () => {
   const flows: Flow[] = [
     { id: "shout", input: { type: "object", properties: { text: { type: "string" } }, required: ["text"] }, nodes: [{ id: "p", type: "prompt", config: { template: "{{input.text}}!" } }, { id: "out", type: "output" }], edges: [{ from: "p", to: "out" }] },

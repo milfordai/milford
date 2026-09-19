@@ -1,14 +1,43 @@
 {
-  "name": "@loage/channels",
+  "name": "@milford/channels",
   "version": "0.0.1",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
-  "dependencies": { "@loage/core": "workspace:*", "zod": "^4.6.5" }
+  "dependencies": {
+    "@milford/core": "workspace:*",
+    "zod": "^4.6.5"
+  },
+  "description": "Milford channel adapters: Slack (Socket Mode), Telegram and signed webhooks.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/milfordai/milford.git",
+    "directory": "packages/channels"
+  },
+  "homepage": "https://loage.mintlify.site",
+  "bugs": {
+    "url": "https://github.com/milfordai/milford/issues"
+  },
+  "keywords": [
+    "milford",
+    "slack",
+    "telegram",
+    "webhook",
+    "chatops"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
 }

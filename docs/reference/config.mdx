@@ -1,12 +1,12 @@
 ---
 title: "Configuration"
-description: "The loage.config.yaml file."
+description: "The milford.config.yaml file."
 ---
 
-The server reads one YAML file. Pass its path as the first argument or set `LOAGE_CONFIG`. The default is `loage.config.yaml`.
+The server reads one YAML file. Pass its path as the first argument or set `MILFORD_CONFIG`. The default is `milford.config.yaml`.
 
 ```yaml
-# yaml-language-server: $schema=./node_modules/@loage/config/loage.config.schema.json
+# yaml-language-server: $schema=./node_modules/@milford/config/milford.config.schema.json
 providers:
   - { id: main-llm, type: anthropic, apiKey: "${ANTHROPIC_API_KEY}", model: claude-sonnet-5 }
   - { id: fast-llm, type: openai, baseUrl: https://api.groq.com/openai/v1, apiKey: "${GROQ_API_KEY}", model: llama-3.3-70b-versatile }
@@ -14,7 +14,7 @@ flows:
   - { file: ./flows/triage.json }
 server:
   port: 8080
-  auth: { tokens: ["${LOAGE_TOKEN}"] }
+  auth: { tokens: ["${MILFORD_TOKEN}"] }
   maxBodyBytes: 500000
 run:
   timeoutMs: 30000
@@ -36,7 +36,7 @@ run:
 <ParamField body="channels" type="object[]">List of [channels](/guides/channels). Each needs `id`, `type` (`slack`, `telegram` or `webhook`) and `flow`. Slack and Telegram channels also need an `allow` list. Webhook channels need a `secret`.</ParamField>
 <ParamField body="mcpServers" type="object[]">Other MCP servers that [`mcp` nodes](/guides/mcp) can call over Streamable HTTP. Each has `id`, `url` and optional `headers`.</ParamField>
 <ParamField body="mcp" type="object">
-  The [MCP server](/guides/mcp) (`loage-mcp`). Keys: `expose` (flow ids exposed as tools, empty by default), `transport` (`stdio` or `http`, default `stdio`), `host` (default `0.0.0.0`), `port` (default `8090`), `auth.tokens` (required for `http` beyond localhost).
+  The [MCP server](/guides/mcp) (`milford-mcp`). Keys: `expose` (flow ids exposed as tools, empty by default), `transport` (`stdio` or `http`, default `stdio`), `host` (default `0.0.0.0`), `port` (default `8090`), `auth.tokens` (required for `http` beyond localhost).
 </ParamField>
 <ParamField body="server.port" type="number" default="8080">Listen port.</ParamField>
 <ParamField body="server.auth.tokens" type="string[]" default="[]">Accepted bearer tokens. With none configured, the API is open and the server logs a warning.</ParamField>
@@ -55,4 +55,4 @@ The server writes one JSON line to stdout for each finished run, with the flow i
 
 ## JSON Schema
 
-`packages/config/loage.config.schema.json` is generated from the config schema by `pnpm build`. It is not committed. Point your editor's YAML language server at it for completion.
+`packages/config/milford.config.schema.json` is generated from the config schema by `pnpm build`. It is not committed. Point your editor's YAML language server at it for completion.

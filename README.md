@@ -1,39 +1,39 @@
 <p align="center">
-  <img src="docs/images/loage-02.png" alt="Loage logo" width="88" />
+  <img src="docs/images/loage-02.png" alt="Milford logo" width="88" />
 </p>
 
-# Loage
+# Milford
 
-[![CI](https://github.com/iwandejong/loage.ai/actions/workflows/ci.yml/badge.svg)](https://github.com/iwandejong/loage.ai/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/iwandejong/loage.ai)](https://github.com/iwandejong/loage.ai/releases)
+[![CI](https://github.com/milfordai/milford/actions/workflows/ci.yml/badge.svg)](https://github.com/milfordai/milford/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/milfordai/milford)](https://github.com/milfordai/milford/releases)
 [![Docs](https://img.shields.io/badge/docs-loage.mintlify.site-16A34A)](https://loage.mintlify.site)
-[![License](https://img.shields.io/github/license/iwandejong/loage.ai)](LICENSE)
+[![License](https://img.shields.io/github/license/milfordai/milford)](LICENSE)
 
 ## Intelligent workflows as code: typed decisions, model calls and HTTP calls in a graph
 
-Loage is a headless workflow engine. You describe a flow as plain JSON: small steps such as a typed decision, a model call, a template or an HTTP call, wired in a graph. Loage runs it behind an HTTP API, an MCP server, chat channels or as a TypeScript library.
+Milford is a headless workflow engine. You describe a flow as plain JSON: small steps such as a typed decision, a model call, a template or an HTTP call, wired in a graph. Milford runs it behind an HTTP API, an MCP server, chat channels or as a TypeScript library.
 
 It is not an agent framework. A flow is a fixed graph with no agent loop, so you can read it, version it in git and test it. Models answer narrow, typed questions, and your graph decides what happens next.
 
-[**Documentation**](https://loage.mintlify.site) · [Quick Start](#quick-start) · [How it works](#how-it-works) · [Examples](#examples) · [Releases](https://github.com/iwandejong/loage.ai/releases)
+[**Documentation**](https://loage.mintlify.site) · [Quick Start](#quick-start) · [How it works](#how-it-works) · [Examples](#examples) · [Releases](https://github.com/milfordai/milford/releases)
 
 ## Quick Start
 
 **Go from a clone to a running flow in a minute. No API key needed.**
 
-**Step 1:** Start Loage
+**Step 1:** Start Milford
 
 ```bash
-git clone https://github.com/iwandejong/loage.ai && cd loage.ai
-docker build -t loage .
-docker run -p 8080:8080 -e LOAGE_TOKEN=change-me -v "$PWD/examples/quickstart:/config:ro" loage
+git clone https://github.com/milfordai/milford && cd milford
+docker build -t milford .
+docker run -p 8080:8080 -e MILFORD_TOKEN=change-me -v "$PWD/examples/quickstart:/config:ro" milford
 ```
 
 Without Docker, use Node 22 and pnpm:
 
 ```bash
 pnpm install && pnpm build
-LOAGE_TOKEN=change-me node packages/server/dist/cli.js examples/quickstart/loage.config.yaml
+MILFORD_TOKEN=change-me node packages/server/dist/cli.js examples/quickstart/milford.config.yaml
 ```
 
 **Step 2:** Run a flow
@@ -48,7 +48,7 @@ The response holds the result of every node and the flow `output`, here `"Hello 
 
 **Step 3:** Add a model
 
-A `decision` node asks a provider a typed question and returns a value you can branch on. Add a provider to `loage.config.yaml`:
+A `decision` node asks a provider a typed question and returns a value you can branch on. Add a provider to `milford.config.yaml`:
 
 ```yaml
 providers:
@@ -201,7 +201,7 @@ LLM-backed decisions report the model's own confidence estimate, not a calibrate
 **Best for:** any language or framework calling flows over REST.
 
 ```bash
-node packages/server/dist/cli.js loage.config.yaml
+node packages/server/dist/cli.js milford.config.yaml
 ```
 
 An [OpenAPI 3.1 spec](docs/openapi.yaml) describes the API, so you can generate a client for Java, .NET, Python or Go.
@@ -214,13 +214,13 @@ An [OpenAPI 3.1 spec](docs/openapi.yaml) describes the API, so you can generate 
 mcp:
   expose: [triage]            # nothing is exposed unless listed
   transport: http
-  auth: { tokens: ["${LOAGE_MCP_TOKEN}"] }
+  auth: { tokens: ["${MILFORD_MCP_TOKEN}"] }
 ```
 
 ```bash
-node packages/mcp/dist/cli.js loage.config.yaml
-claude mcp add --transport http loage http://localhost:8090/mcp \
-  --header "Authorization: Bearer $LOAGE_MCP_TOKEN"
+node packages/mcp/dist/cli.js milford.config.yaml
+claude mcp add --transport http milford http://localhost:8090/mcp \
+  --header "Authorization: Bearer $MILFORD_MCP_TOKEN"
 ```
 
 Give a flow a `description` and an `input` JSON Schema, and clients see them as the tool description and arguments. See the [MCP guide](https://loage.mintlify.site/guides/mcp).
@@ -230,8 +230,8 @@ Give a flow a `description` and an `input` JSON Schema, and clients see them as 
 **Best for:** embedding the engine in a TypeScript app.
 
 ```ts
-import { createEngine, defaultRegistry, flow } from "@loage/core";
-import { registerProviders } from "@loage/providers";
+import { createEngine, defaultRegistry, flow } from "@milford/core";
+import { registerProviders } from "@milford/providers";
 
 const engine = createEngine({
   registry: registerProviders(defaultRegistry()),
@@ -253,10 +253,10 @@ const result = await engine.value.run("summarize", { text: "..." });
 
 ### Queue-driven services
 
-A service that reads from a queue such as IBM MQ keeps the queue, the transactions and its own state, and calls Loage over HTTP for the decisions. Send the message id as an `Idempotency-Key` so a redelivered message does not run the flow, or pay for the model calls, twice.
+A service that reads from a queue such as IBM MQ keeps the queue, the transactions and its own state, and calls Milford over HTTP for the decisions. Send the message id as an `Idempotency-Key` so a redelivered message does not run the flow, or pay for the model calls, twice.
 
 ```text
-IBM MQ ──> Spring service ──POST /v1/flows/classify-error/run──> Loage ──> model or classifier
+IBM MQ ──> Spring service ──POST /v1/flows/classify-error/run──> Milford ──> model or classifier
               │  (JMS, transactions,                              (stateless)
               │   history lookup, storage)
               └──> writes the new error to its own database
@@ -297,10 +297,10 @@ mcpServers:
 mcp:
   expose: [triage]
   transport: http
-  auth: { tokens: ["${LOAGE_MCP_TOKEN}"] }
+  auth: { tokens: ["${MILFORD_MCP_TOKEN}"] }
 server:
   port: 8080
-  auth: { tokens: ["${LOAGE_TOKEN}"] }
+  auth: { tokens: ["${MILFORD_TOKEN}"] }
 run: { timeoutMs: 30000, maxConcurrentRuns: 32 }
 ```
 
@@ -311,7 +311,7 @@ The server checks everything at startup: unknown providers, providers that canno
 ## Repository Structure
 
 ```text
-loage.ai/
+Milford/
 ├── packages/
 │   ├── core/            # Flow compiler, executor, nodes, provider port. No I/O
 │   ├── config/          # YAML config loader and JSON Schema, shared by both servers
@@ -353,13 +353,13 @@ The full documentation is at **[loage.mintlify.site](https://loage.mintlify.site
 
 ## Status
 
-Loage is at v0.0.1. The config format can still change. The Slack and Telegram adapters and the provider adapters are tested against mocked network calls, not live services, so try them with a test workspace and test keys first.
+Milford is at v0.0.1. The config format can still change. The Slack and Telegram adapters and the provider adapters are tested against mocked network calls, not live services, so try them with a test workspace and test keys first.
 
 ---
 
 ## Need Help?
 
-- Open an [issue](https://github.com/iwandejong/loage.ai/issues) for a bug or a question.
+- Open an [issue](https://github.com/milfordai/milford/issues) for a bug or a question.
 - Read the [documentation](https://loage.mintlify.site), or ask your AI assistant with the page menu on any docs page.
 
 ## Contributing

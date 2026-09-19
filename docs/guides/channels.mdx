@@ -46,7 +46,7 @@ channels:
 
 ## Slack
 
-Loage connects to Slack with Socket Mode. It opens an outbound WebSocket, so the server needs no public URL and works behind a home router. Loage reconnects with backoff when the connection drops.
+Milford connects to Slack with Socket Mode. It opens an outbound WebSocket, so the server needs no public URL and works behind a home router. Milford reconnects with backoff when the connection drops.
 
 <Steps>
   <Step title="Create the app">
@@ -63,16 +63,16 @@ Loage connects to Slack with Socket Mode. It opens an outbound WebSocket, so the
   </Step>
 </Steps>
 
-Loage answers direct messages and @mentions. In channels it replies in the thread of the mention. Set `allow` to Slack member ids, which start with `U`.
+Milford answers direct messages and @mentions. In channels it replies in the thread of the mention. Set `allow` to Slack member ids, which start with `U`.
 
 ## Telegram
 
-Loage polls the Bot API with `getUpdates`. It needs no public URL and no inbound port.
+Milford polls the Bot API with `getUpdates`. It needs no public URL and no inbound port.
 
 1. Message `@BotFather`, create a bot and copy the token into `botToken`.
 2. Find your numeric user id, for example by messaging a bot such as `@userinfobot`, and put it in `allow`.
 
-Loage does not write the bot token to its logs.
+Milford does not write the bot token to its logs.
 
 ## Webhook
 
@@ -80,8 +80,8 @@ A webhook channel is served by the HTTP server at `POST /hooks/<id>`. It uses it
 
 The caller sends two headers:
 
-- `x-loage-timestamp`: the current Unix time in seconds. Requests more than five minutes off are rejected, which limits replay.
-- `x-loage-signature`: `sha256=` followed by the hex HMAC-SHA256 of `<timestamp>.<raw body>` with your secret.
+- `x-milford-timestamp`: the current Unix time in seconds. Requests more than five minutes off are rejected, which limits replay.
+- `x-milford-signature`: `sha256=` followed by the hex HMAC-SHA256 of `<timestamp>.<raw body>` with your secret.
 
 The JSON body must be an object. It becomes the flow input as it is, and the response carries the flow output.
 
@@ -91,8 +91,8 @@ TS=$(date +%s)
 SIG=$(printf '%s.%s' "$TS" "$BODY" | openssl dgst -sha256 -hmac "$CRM_WEBHOOK_SECRET" | awk '{print $NF}')
 
 curl -s localhost:8080/hooks/crm-hook \
-  -H "x-loage-timestamp: $TS" \
-  -H "x-loage-signature: sha256=$SIG" \
+  -H "x-milford-timestamp: $TS" \
+  -H "x-milford-signature: sha256=$SIG" \
   -d "$BODY"
 ```
 

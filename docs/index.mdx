@@ -1,18 +1,18 @@
 ---
 title: "Introduction"
-description: "Loage is a headless workflow engine for typed decisions, model calls and HTTP calls, wired in a graph."
+description: "Milford is a headless workflow engine for typed decisions, model calls and HTTP calls, wired in a graph."
 ---
 
-Loage runs flows: graphs of small steps such as typed decisions, model calls, templates and HTTP calls. You configure it as code, run it as a TypeScript library or a single Docker container, and call it over HTTP.
+Milford runs flows: graphs of small steps such as typed decisions, model calls, templates and HTTP calls. You configure it as code, run it as a TypeScript library or a single Docker container, and call it over HTTP.
 
-Loage is not an agent framework. There are no agent loops and no tool-use planning. A flow is a fixed graph that you can read, version in git and test.
+Milford is not an agent framework. There are no agent loops and no tool-use planning. A flow is a fixed graph that you can read, version in git and test.
 
 ## What you get
 
-- A core library, `@loage/core`, with no I/O and no vendor knowledge.
-- Provider adapters in `@loage/providers`: OpenAI (and compatible servers), Anthropic, Jev and generic HTTP.
-- A thin HTTP server, `@loage/server`, with bearer auth and server-sent events.
-- An MCP server, `@loage/mcp`, that exposes flows as tools to external LLMs.
+- A core library, `@milford/core`, with no I/O and no vendor knowledge.
+- Provider adapters in `@milford/providers`: OpenAI (and compatible servers), Anthropic, Jev and generic HTTP.
+- A thin HTTP server, `@milford/server`, with bearer auth and server-sent events.
+- An MCP server, `@milford/mcp`, that exposes flows as tools to external LLMs.
 - A `Dockerfile` for `linux/amd64` and `linux/arm64`. No database.
 
 ## Where to go next

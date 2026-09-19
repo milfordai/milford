@@ -1,4 +1,4 @@
-import { createEngine, defaultRegistry, flow, type DecideRequest } from "@loage/core";
+import { createEngine, defaultRegistry, flow, type DecideRequest } from "@milford/core";
 import { describe, expect, it } from "vitest";
 import { registerProviders } from "./index.js";
 
