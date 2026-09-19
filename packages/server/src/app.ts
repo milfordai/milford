@@ -79,14 +79,17 @@ export function createApp({ engine, tokens = [], maxBodyBytes = 1_000_000, idemp
       }
     }
     const started = performance.now();
-    const done = (ok: boolean, runId?: string) => log(JSON.stringify({ level: "info", msg: "run", flow: id, ok, runId, ms: Math.round(performance.now() - started) }));
+    const done = (ok: boolean, runId?: string, cache?: string) => log(JSON.stringify({ level: "info", msg: "run", flow: id, ok, runId, cache, ms: Math.round(performance.now() - started) }));
+    // `no-cache` skips the lookup of a cached flow and refreshes it, `no-store` skips the cache altogether.
+    const control = c.req.header("cache-control") ?? "";
+    const cache = /\bno-store\b/i.test(control) ? "off" : /\bno-cache\b/i.test(control) ? "refresh" : undefined;
 
     if (!sse) {
       const finish = ikey ? idempotent.begin(ikey, fingerprint) : undefined;
       let kept: RunResult | undefined;
       try {
-        const r = await engine.run(id, input, { signal: c.req.raw.signal });
-        done(r.ok && r.value.ok, r.ok ? r.value.runId : undefined);
+        const r = await engine.run(id, input, { signal: c.req.raw.signal, cache });
+        done(r.ok && r.value.ok, r.ok ? r.value.runId : undefined, r.ok ? r.value.cache : undefined);
         // Only successful runs are kept, so a retry after a failure runs again.
         if (r.ok && r.value.ok) kept = r.value;
         if (r.ok) return c.json(r.value);

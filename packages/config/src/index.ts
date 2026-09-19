@@ -9,6 +9,7 @@ export const FlowSchema = z.object({
   id: z.string(),
   description: z.string().optional(),
   input: z.record(z.string(), z.unknown()).optional(),
+  cache: z.object({ mode: z.literal("direct"), ttlMs: z.number().positive() }).optional(),
   nodes: z.array(z.object({
     id: z.string(),
     type: z.string(),

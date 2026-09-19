@@ -60,4 +60,12 @@ describe("mcp config", () => {
     if (!r.ok) throw new Error(r.error);
     expect(r.value.flows[0]).toMatchObject({ id: "f", nodes: [{ id: "out", type: "output" }] });
   });
+  it("reads a flow's cache setting and rejects an unknown mode", () => {
+    const flow = (cache: object) => JSON.stringify({ id: "f", cache, nodes: [], edges: [] });
+    const ok = parseConfig("flows: [{ file: ./f.json }]", "/", {}, () => flow({ mode: "direct", ttlMs: 60000 }));
+    if (!ok.ok) throw new Error(ok.error);
+    expect(ok.value.flows[0]).toMatchObject({ cache: { mode: "direct", ttlMs: 60000 } });
+    expect(parseConfig("flows: [{ file: ./f.json }]", "/", {}, () => flow({ mode: "semantic", ttlMs: 1 })).ok).toBe(false);
+    expect(parseConfig("flows: [{ file: ./f.json }]", "/", {}, () => flow({ mode: "direct", ttlMs: 0 })).ok).toBe(false);
+  });
 });

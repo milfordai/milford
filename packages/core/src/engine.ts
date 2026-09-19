@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { compileFlow, type CompiledFlow, type ProviderCaps } from "./compile.js";
-import { lruCache } from "./cache.js";
+import { canonical, lruCache, memoryRunCache, sha256, type RunCache } from "./cache.js";
 import { withFallback } from "./providers.js";
 import { withBreaker, withRateLimit } from "./resilience.js";
 import type { Registry } from "./registry.js";
@@ -21,11 +21,19 @@ export type EngineConfig = {
   maxConcurrentRuns?: number;
   /** Default per-run timeout in milliseconds, unless a run passes its own. */
   timeoutMs?: number;
+  /** Where finished runs of flows with `cache` are kept. In memory by default. */
+  runCache?: RunCache;
 };
+
+/**
+ * `cache: "refresh"` skips the lookup but stores the fresh result (HTTP `Cache-Control: no-cache`).
+ * `cache: "off"` neither reads nor writes (`no-store`). Runs that stream events never use the cache.
+ */
+export type EngineRunOptions = Omit<RunOptions, "input"> & { cache?: "refresh" | "off" };
 
 export type Engine = {
   flows(): { id: string; nodes: number; description?: string; input?: Record<string, unknown> }[];
-  run(flowId: string, input?: Record<string, unknown>, opts?: Omit<RunOptions, "input">): Promise<Result<RunResult>>;
+  run(flowId: string, input?: Record<string, unknown>, opts?: EngineRunOptions): Promise<Result<RunResult>>;
 };
 
 /** Builds providers, compiles every flow once (failing fast on bad config), and returns a runner. */
@@ -72,6 +80,10 @@ export function createEngine(cfg: EngineConfig): Result<Engine> {
   }
 
   const cache = lruCache();
+  const runCache = cfg.runCache ?? memoryRunCache();
+  // What a cached result depends on besides the input: the flow and the provider config (which model, which prompt).
+  const versions = new Map<string, Promise<string>>();
+  const version = (f: Flow) => versions.get(f.id) ?? versions.set(f.id, sha256(canonical({ flow: f, providers: cfg.providers ?? [] }))).get(f.id)!;
   let active = 0;
   return {
     ok: true,
@@ -82,10 +94,22 @@ export function createEngine(cfg: EngineConfig): Result<Engine> {
         if (!c) return { ok: false, error: `unknown flow "${flowId}"` };
         const bad = inputs.get(flowId)?.safeParse(input);
         if (bad && !bad.success) return { ok: false, error: `${INVALID_INPUT}: ${bad.error.issues.map((i) => `${i.path.join(".") || "input"}: ${i.message}`).join("; ")}` };
+        const policy = c.flow.cache;
+        const useCache = policy && !opts.onEvent && opts.cache !== "off";
+        const key = useCache ? `${flowId}:${await version(c.flow)}:${await sha256(canonical(input))}` : undefined;
+        // A hit skips the run, so it does not count against maxConcurrentRuns.
+        if (key && opts.cache !== "refresh") {
+          const hit = await runCache.get(key);
+          if (hit) return { ok: true, value: { ...hit, cache: "hit" } };
+        }
         if (active >= (cfg.maxConcurrentRuns ?? Infinity)) return { ok: false, error: TOO_MANY_RUNS };
         active++;
         try {
-          return { ok: true, value: await runFlow(c, { registry: cfg.registry, providers, fetch: doFetch, cache }, { ...opts, timeoutMs: opts.timeoutMs ?? cfg.timeoutMs, input }) };
+          const { cache: _ignored, ...run } = opts;
+          const value = await runFlow(c, { registry: cfg.registry, providers, fetch: doFetch, cache }, { ...run, timeoutMs: opts.timeoutMs ?? cfg.timeoutMs, input });
+          // Only successful runs are kept, so a failure is retried instead of replayed.
+          if (key && value.ok) await runCache.set(key, value, policy!.ttlMs);
+          return { ok: true, value: policy ? { ...value, cache: "miss" } : value };
         } finally {
           active--;
         }

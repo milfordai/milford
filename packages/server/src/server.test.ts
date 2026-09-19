@@ -233,3 +233,39 @@ describe("per-flow openapi", () => {
     expect(() => buildOpenApi([{ id: "a-b", nodes: 1 }, { id: "a_b", nodes: 1 }])).toThrow(/same operation name/);
   });
 });
+
+describe("flow cache over HTTP", () => {
+  let calls = 0;
+  const registry = defaultRegistry().registerNode("count", { run: async () => (calls++, { success: true, output: `run ${calls}` }) });
+  const flow = { id: "c", cache: { mode: "direct" as const, ttlMs: 60_000 }, nodes: [{ id: "n", type: "count" }, { id: "out", type: "output" }], edges: [{ from: "n", to: "out" }] };
+  const engine = createEngine({ registry, flows: [flow] });
+  if (!engine.ok) throw new Error(engine.error);
+  const lines: string[] = [];
+  const app = createApp({ engine: engine.value, log: (l) => lines.push(l) });
+  const post = async (input: object, headers: Record<string, string> = {}) => (await (await app.request("/v1/flows/c/run", { method: "POST", headers, body: JSON.stringify({ input }) })).json()) as { cache?: string; runId: string };
+
+  it("answers a repeated request from the cache, and shows hit or miss in the body and the log", async () => {
+    const first = await post({ q: 1 });
+    const second = await post({ q: 1 });
+    expect([first.cache, second.cache]).toEqual(["miss", "hit"]);
+    expect(second.runId).toBe(first.runId);
+    expect(calls).toBe(1);
+    expect(lines.map((l) => JSON.parse(l).cache)).toEqual(["miss", "hit"]);
+  });
+
+  it("honours Cache-Control: no-cache and no-store", async () => {
+    await post({ q: 2 });
+    const before = calls;
+    expect((await post({ q: 2 }, { "cache-control": "no-cache" })).cache).toBe("miss");
+    expect(calls).toBe(before + 1);
+    expect((await post({ q: 2 })).cache).toBe("hit"); // no-cache refreshed the entry
+    await post({ q: 3 }, { "cache-control": "no-store" });
+    expect((await post({ q: 3 })).cache).toBe("miss"); // no-store stored nothing
+  });
+
+  it("lists the cache field and header in the OpenAPI spec", () => {
+    const spec = parse(readFileSync(new URL("../openapi.yaml", import.meta.url), "utf8")) as any;
+    expect(spec.components.schemas.RunResult.properties.cache.enum).toEqual(["hit", "miss"]);
+    expect(spec.paths["/v1/flows/{id}/run"].post.parameters.map((p: { name: string }) => p.name)).toContain("Cache-Control");
+  });
+});

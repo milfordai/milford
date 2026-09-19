@@ -24,6 +24,11 @@ export type Flow = {
   description?: string;
   /** JSON Schema of the run input, for callers that need to describe it. The engine does not enforce it. */
   input?: Record<string, unknown>;
+  /**
+   * Reuse the result of an earlier identical run instead of running the flow again. Off by default: only
+   * cache flows that are deterministic and have no side effects, because a hit skips every node.
+   */
+  cache?: { mode: "direct"; ttlMs: number };
   nodes: Node[];
   edges: Edge[];
 };
@@ -46,6 +51,8 @@ export type RunResult = {
   nodes: Record<string, NodeState>;
   /** Result of the flow's `output` node, when one ran. */
   output?: NodeResult;
+  /** Only for flows with `cache`: `hit` is an earlier run's result (its `runId` and trace), `miss` a run that executed. */
+  cache?: "hit" | "miss";
 };
 
 // --- Provider port -------------------------------------------------------

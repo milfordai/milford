@@ -79,6 +79,14 @@ paths:
           required: true
           description: Flow id.
           schema: { type: string }
+        - name: Cache-Control
+          in: header
+          required: false
+          description: |
+            Only for flows that declare `cache`. `no-cache` skips the lookup and runs the flow again, then stores
+            the fresh result. `no-store` neither reads nor writes the cache. Ignored for event streams, which
+            are never cached.
+          schema: { type: string, enum: [no-cache, no-store] }
         - name: Idempotency-Key
           in: header
           required: false
@@ -263,6 +271,12 @@ components:
         output:
           description: Result of the flow's `output` node, when one ran.
           $ref: "#/components/schemas/NodeResult"
+        cache:
+          type: string
+          enum: [hit, miss]
+          description: |
+            Only present for flows that declare `cache`. `hit` is the result of an earlier identical run, with
+            its `runId` and trace, and no node ran. `miss` is a fresh run.
     WebhookResult:
       type: object
       required: [ok, runId]
