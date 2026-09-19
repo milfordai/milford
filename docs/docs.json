@@ -6,7 +6,8 @@
     "primary": "#16A34A"
   },
   "navigation": {
-    "groups": [
+    "pages": [
+      "index",
       {
         "group": "Get started",
         "pages": []
