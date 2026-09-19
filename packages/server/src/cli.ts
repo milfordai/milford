@@ -7,7 +7,9 @@ import { serve } from "@hono/node-server";
 import { createApp } from "./app.js";
 
 
-const path = process.argv[2] ?? process.env.MILFORD_CONFIG ?? "milford.config.yaml";
+// `milford-server validate [config]` checks the config and every flow, then exits without listening.
+const validateOnly = process.argv[2] === "validate";
+const path = process.argv[validateOnly ? 3 : 2] ?? process.env.MILFORD_CONFIG ?? "milford.config.yaml";
 const die = (msg: string): never => (console.error(`milford: ${msg}`), process.exit(1));
 
 const loaded = loadConfig(path);
@@ -24,6 +26,12 @@ const eng = (engine as Extract<typeof engine, { ok: true }>).value;
 const channels = createChannels(config.channels, { engine: eng, log: console.log });
 if (!channels.ok) die(channels.error);
 const chs = (channels as Extract<typeof channels, { ok: true }>).value;
+
+if (validateOnly) {
+  console.log(`milford: ${path} is valid (${flows.length} flow(s), ${chs.length} channel(s))`);
+  await egress?.close();
+  process.exit(0);
+}
 
 const app = createApp({ engine: eng, channels: chs, tokens: config.server.auth.tokens, maxBodyBytes: config.server.maxBodyBytes, idempotencyTtlMs: config.server.idempotencyTtlMs });
 if (!config.server.auth.tokens.length) console.warn("milford: no auth tokens configured, the API is open");

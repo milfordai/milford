@@ -1,6 +1,6 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import type { Channel } from "@milfordai/channels";
-import { TOO_MANY_RUNS, type Engine, type RunResult } from "@milfordai/core";
+import { INVALID_INPUT, TOO_MANY_RUNS, type Engine, type RunResult } from "@milfordai/core";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { streamSSE } from "hono/streaming";
@@ -85,6 +85,7 @@ export function createApp({ engine, tokens = [], maxBodyBytes = 1_000_000, idemp
         // Only successful runs are kept, so a retry after a failure runs again.
         if (r.ok && r.value.ok) kept = r.value;
         if (r.ok) return c.json(r.value);
+        if (r.error.startsWith(INVALID_INPUT)) return c.json({ error: r.error }, 400);
         return r.error === TOO_MANY_RUNS ? c.json({ error: r.error }, 503, { "retry-after": "1" }) : c.json({ error: r.error }, 500);
       } finally {
         finish?.(kept);

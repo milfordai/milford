@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { compileFlow, type CompiledFlow, type ProviderCaps } from "./compile.js";
 import { lruCache } from "./cache.js";
 import { withFallback } from "./providers.js";
@@ -8,6 +9,8 @@ import type { Flow, Provider, ProviderConfig, Result, RunResult } from "./types.
 
 /** The `error` of a run rejected by `maxConcurrentRuns`. Callers can map it to their own "busy" response. */
 export const TOO_MANY_RUNS = "too many concurrent runs";
+/** Prefix of the `error` of a run whose input does not match the flow's declared `input` JSON Schema. */
+export const INVALID_INPUT = "invalid input";
 
 export type EngineConfig = {
   registry: Registry;
@@ -54,10 +57,18 @@ export function createEngine(cfg: EngineConfig): Result<Engine> {
 
   const caps: ProviderCaps = new Map([...providers].map(([id, p]) => [id, p.capabilities]));
   const compiled = new Map<string, CompiledFlow>();
+  const inputs = new Map<string, z.ZodType>();
   for (const f of cfg.flows ?? []) {
     const c = compileFlow(f, cfg.registry, caps);
     if (!c.ok) return { ok: false, error: `flow "${f.id}": ${c.error}` };
     compiled.set(f.id, c.value);
+    if (f.input) {
+      try {
+        inputs.set(f.id, z.fromJSONSchema(f.input as z.core.JSONSchema.JSONSchema));
+      } catch (e) {
+        return { ok: false, error: `flow "${f.id}": input is not a valid JSON Schema: ${(e as Error).message}` };
+      }
+    }
   }
 
   const cache = lruCache();
@@ -69,6 +80,8 @@ export function createEngine(cfg: EngineConfig): Result<Engine> {
       async run(flowId, input = {}, opts = {}) {
         const c = compiled.get(flowId);
         if (!c) return { ok: false, error: `unknown flow "${flowId}"` };
+        const bad = inputs.get(flowId)?.safeParse(input);
+        if (bad && !bad.success) return { ok: false, error: `${INVALID_INPUT}: ${bad.error.issues.map((i) => `${i.path.join(".") || "input"}: ${i.message}`).join("; ")}` };
         if (active >= (cfg.maxConcurrentRuns ?? Infinity)) return { ok: false, error: TOO_MANY_RUNS };
         active++;
         try {

@@ -185,3 +185,18 @@ describe("openapi spec", () => {
     expect(documented).toEqual(served);
   });
 });
+
+describe("input schema", () => {
+  const flow = { id: "greet", input: { type: "object", properties: { name: { type: "string" } }, required: ["name"] }, nodes: [{ id: "out", type: "output" }], edges: [] };
+  const engine = createEngine({ registry: defaultRegistry(), flows: [flow] });
+  if (!engine.ok) throw new Error(engine.error);
+  const app = createApp({ engine: engine.value, log: () => {} });
+  const post = (input: object) => app.request("/v1/flows/greet/run", { method: "POST", body: JSON.stringify({ input }) });
+
+  it("answers 400 for input that breaks the flow's schema", async () => {
+    const res = await post({ name: 1 });
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { error: string }).error).toContain("name");
+    expect((await post({ name: "Ann" })).status).toBe(200);
+  });
+});
