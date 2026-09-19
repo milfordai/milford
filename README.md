@@ -185,19 +185,19 @@ flowchart LR
   class human stop
 ```
 
-Every run returns a trace. This is the `category` decision of the error-classification example, with a stand-in provider:
+Every run returns a trace. This is the `category` decision of the enterprise example, with a stand-in provider:
 
 ```json
 {
   "status": "done",
   "result": {
     "success": true,
-    "output": "infra-incident",
+    "output": "billing",
     "data": {
       "kind": "choice",
-      "question": "What kind of error is this?",
-      "options": ["application-defect", "infra-incident", "user-exception", "none_of_these"],
-      "choice": "infra-incident",
+      "question": "Which category does this message belong to?",
+      "options": ["billing", "technical", "sales", "none_of_these"],
+      "choice": "billing",
       "confidence": 0.93,
       "gated": false,
       "provider": "classifier"
@@ -327,13 +327,13 @@ const result = await engine.value.run("summarize", { text: "..." });
 
 ### Queue-driven services
 
-A service that reads from a queue such as IBM MQ keeps the queue, the transactions and its own state, and calls Milford over HTTP for the decisions. Send the message id as an `Idempotency-Key` so a redelivered message does not run the flow, or pay for the model calls, twice.
+A service that reads from a queue such as IBM MQ, RabbitMQ or Kafka keeps the queue, the transactions and its own state, and calls Milford over HTTP for the decisions. Send the message id as an `Idempotency-Key` so a redelivered message does not run the flow, or pay for the model calls, twice.
 
 ```text
-IBM MQ ──> Spring service ──POST /v1/flows/classify-error/run──> Milford ──> model or classifier
-              │  (JMS, transactions,                              (stateless)
+queue ──> your service ──POST /v1/flows/classify-message/run──> Milford ──> model or classifier
+              │  (transactions, acknowledgement,               (stateless)
               │   history lookup, storage)
-              └──> writes the new error to its own database
+              └──> writes the result to its own database
 ```
 
 See [enterprise integration](https://milford.mintlify.site/guides/enterprise-integration).
@@ -409,7 +409,7 @@ Milford/
 | [`examples/quickstart`](examples/quickstart) | The config from the Quick Start. Runs without an API key. Lives in this repository. |
 | `flows` | One flow per idea: templates, a summarizing model call, decision routing and a webhook call. |
 | `home-automation` | A free-text command turned into device actions by a fan-out of small decisions, with a fake device server so it runs without hardware. [Guide](https://milford.mintlify.site/guides/home-automation). |
-| `error-classification` | Classify application errors as defect, infrastructure incident or user exception, and detect repeats of earlier ones. |
+| `enterprise` | A service that reads messages from a queue and asks Milford to sort each one into caller-supplied categories and spot repeats. One env file per environment. |
 
 ---
 
