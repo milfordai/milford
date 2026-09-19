@@ -6,4 +6,4 @@ The engine behind [Milford](https://github.com/milfordai/milford): flow compiler
 import { createEngine, defaultRegistry, flow } from "@milford/core";
 ```
 
-See the [documentation](https://loage.mintlify.site) and the [repository](https://github.com/milfordai/milford).
+See the [documentation](https://milford.mintlify.site) and the [repository](https://github.com/milfordai/milford).

@@ -9,4 +9,4 @@ import { registerProviders } from "@milford/providers";
 const registry = registerProviders(defaultRegistry());
 ```
 
-See the [providers documentation](https://loage.mintlify.site/providers/overview).
+See the [providers documentation](https://milford.mintlify.site/providers/overview).
