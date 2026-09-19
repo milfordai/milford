@@ -23,7 +23,7 @@ Milford is a headless intelligent workflow engine: a TypeScript core library plu
 - A user-visible change also needs a docs change: open a matching pull request in `milfordai/docs` and link the two (see Documentation).
 
 ## Documentation and other repositories
-- This repository is the open-source core. The org `milfordai` has three more: `docs` (Mintlify site, private), `examples` (runnable examples, except `examples/quickstart` which stays here) and `cloud` (the hosted product, private, depends on the published `@milford/*` packages).
+- This repository is the open-source core. The org `milfordai` also has `docs` (the Mintlify site) and `examples` (runnable examples, except `examples/quickstart` which stays here), both private for now.
 - Every user-visible change (node, provider, config key, endpoint, CLI flag) needs a matching pull request in `milfordai/docs`. Link the two pull requests, and merge the code first.
 - `packages/server/openapi.yaml` is the source of truth for the HTTP API and stays here. A server test fails when a route is missing from it. The docs repository gets a copy at release time.
 - Docs style and the Mintlify workflow are in the docs repository's `AGENTS.md`.

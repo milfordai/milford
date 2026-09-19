@@ -69,7 +69,7 @@ Then use it in a flow. Edges with `when` route on the answer, and a low-confiden
 { "from": "team", "to": "billing-reply", "when": { "path": "data.choice", "op": "eq", "value": "billing" } }
 ```
 
-The complete flow is [`flows/triage.json`](https://github.com/milfordai/examples/blob/main/flows/triage.json) in the examples repository. Switching the provider to an OpenAI-compatible server or a local classifier is a config change, and the flow stays the same.
+The complete flow is `flows/triage.json` in the examples. Switching the provider to an OpenAI-compatible server or a local classifier is a config change, and the flow stays the same.
 
 **That's it!** Your flow runs behind an authenticated API with streaming, idempotent retries and run limits.
 
@@ -123,7 +123,7 @@ flowchart LR
   class human stop
 ```
 
-Every run returns a trace. This is the `category` decision of the [error-classification example](https://github.com/milfordai/examples/tree/main/error-classification), with a stand-in provider:
+Every run returns a trace. This is the `category` decision of the error-classification example, with a stand-in provider:
 
 ```json
 {
@@ -340,14 +340,14 @@ Milford/
 
 ## Examples
 
-[`examples/quickstart`](examples/quickstart) is in this repository. The others are in [milfordai/examples](https://github.com/milfordai/examples).
+[`examples/quickstart`](examples/quickstart) is in this repository. The larger examples are in a separate repository that is not public yet.
 
 | Example | What it shows |
 | --- | --- |
 | [`examples/quickstart`](examples/quickstart) | The config from the Quick Start. Runs without an API key. Lives in this repository. |
-| [`flows`](https://github.com/milfordai/examples/tree/main/flows) | One flow per idea: templates, a summarizing model call, decision routing and a webhook call. |
-| [`home-automation`](https://github.com/milfordai/examples/tree/main/home-automation) | A free-text command turned into device actions by a fan-out of small decisions, with a fake device server so it runs without hardware. [Guide](https://milford.mintlify.site/guides/home-automation). |
-| [`error-classification`](https://github.com/milfordai/examples/tree/main/error-classification) | Classify application errors as defect, infrastructure incident or user exception, and detect repeats of earlier ones. |
+| `flows` | One flow per idea: templates, a summarizing model call, decision routing and a webhook call. |
+| `home-automation` | A free-text command turned into device actions by a fan-out of small decisions, with a fake device server so it runs without hardware. [Guide](https://milford.mintlify.site/guides/home-automation). |
+| `error-classification` | Classify application errors as defect, infrastructure incident or user exception, and detect repeats of earlier ones. |
 
 ---
 
@@ -384,7 +384,7 @@ pnpm typecheck
 pnpm test
 ```
 
-Work happens on `feature/<name>` branches from `dev`, merged back with a pull request, and releases are tagged from `main`. The documentation is in the [docs repository](https://github.com/milfordai/docs). A change that users can see (a node, a provider, a config key, an endpoint or a CLI flag) needs a linked pull request there. See [AGENTS.md](AGENTS.md) for the architecture rules and the git flow.
+Work happens on `feature/<name>` branches from `dev`, merged back with a pull request, and releases are tagged from `main`. The documentation site is kept in a separate repository. If your change is visible to users (a node, a provider, a config key, an endpoint or a CLI flag), describe the docs change in your pull request and a maintainer updates the site. See [AGENTS.md](AGENTS.md) for the architecture rules and the git flow.
 
 ## License
 

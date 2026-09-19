@@ -25,9 +25,9 @@ A pre-commit hook runs the typecheck and the tests.
 
 ## Documentation
 
-The documentation is in a separate repository (`milfordai/docs`, Mintlify). A change that users can see (a node, a provider, a config key, an endpoint or a CLI flag) needs a matching pull request there. Link the two pull requests. `packages/server/openapi.yaml` stays here as the source of truth for the HTTP API: update it in the same pull request as the route, and the docs repository gets a copy at release time.
+The documentation site is kept in a separate repository. If your change is visible to users (a node, a provider, a config key, an endpoint or a CLI flag), describe the docs change in your pull request and a maintainer updates the site. Update `packages/server/openapi.yaml` in the same pull request as an HTTP route: a test fails when a route is missing from it.
 
-Runnable examples are in `milfordai/examples`, except `examples/quickstart`, which the README and the Docker instructions use.
+The larger runnable examples are in a separate repository that is not public yet. `examples/quickstart` stays here, because the README and the Docker instructions use it.
 
 ## Reporting bugs
 
