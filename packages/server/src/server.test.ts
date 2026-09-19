@@ -23,11 +23,18 @@ describe("config", () => {
     const r = parseConfig(yaml, "/cfg", { KEY: "k1", TOKEN: "t1" }, read);
     if (!r.ok) throw new Error(r.error);
     expect(r.value.providers[0]).toMatchObject({ id: "m", apiKey: "k1" });
-    expect(r.value.config.server).toEqual({ port: 9000, auth: { tokens: ["t1"] } });
+    expect(r.value.config.server).toMatchObject({ port: 9000, auth: { tokens: ["t1"] } });
     expect(r.value.flows[0]?.id).toBe("hello");
   });
   it("lists every missing env var", () => {
     expect(parseConfig(yaml, "/cfg", {}, read)).toEqual({ ok: false, error: "environment variables not set: KEY, TOKEN" });
+  });
+  it("defaults the run timeout and accepts provider resilience settings", () => {
+    const r = parseConfig("providers: [{ id: a, type: openai, circuitBreaker: { failures: 3, resetMs: 5000 }, rateLimit: { perSecond: 2 } }]", "/", {}, read);
+    if (!r.ok) throw new Error(r.error);
+    expect(r.value.config.server.runTimeoutMs).toBe(60000);
+    expect(r.value.providers[0]).toMatchObject({ circuitBreaker: { failures: 3, resetMs: 5000 }, rateLimit: { perSecond: 2 } });
+    expect(parseConfig("providers: [{ id: a, type: x, rateLimit: { perSecond: 0 } }]", "/", {}, read).ok).toBe(false);
   });
   it("reports schema and flow-file problems", () => {
     expect(parseConfig("providers: [{ id: x }]", "/", {}, read).ok).toBe(false);
@@ -42,7 +49,7 @@ describe("server", () => {
   if (!cfg.ok) throw new Error(cfg.error);
   const engine = createEngine({ registry: defaultRegistry().registerProvider("fake", () => ({ ok: true, value: fake })), providers: cfg.value.providers, flows: cfg.value.flows });
   if (!engine.ok) throw new Error(engine.error);
-  const app = createApp({ engine: engine.value, tokens: ["secret"] });
+  const app = createApp({ engine: engine.value, tokens: ["secret"], log: () => {}, maxBodyBytes: 200, maxConcurrentRuns: 1 });
   const auth = { authorization: "Bearer secret" };
   const post = (id: string, body: unknown, headers: Record<string, string> = {}) => app.request(`/v1/flows/${id}/run`, { method: "POST", headers: { ...auth, ...headers }, body: JSON.stringify(body) });
 
@@ -63,6 +70,35 @@ describe("server", () => {
     expect((await post("nope", {})).status).toBe(404);
     expect((await app.request("/v1/flows/hello/run", { method: "POST", headers: auth, body: "{" })).status).toBe(400);
     expect((await post("hello", { input: [1] })).status).toBe(400);
+  });
+
+  it("rejects oversized bodies with 413", async () => {
+    expect((await post("hello", { input: { pad: "x".repeat(500) } })).status).toBe(413);
+  });
+
+  it("sheds load with 503 when too many runs are active", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const slow = createEngine({
+      registry: defaultRegistry().registerNode("slow", { run: async () => (await gate, { success: true }) }),
+      flows: [{ id: "s", nodes: [{ id: "a", type: "slow" }], edges: [] }],
+    });
+    if (!slow.ok) throw new Error(slow.error);
+    const a = createApp({ engine: slow.value, log: () => {}, maxConcurrentRuns: 1 });
+    const first = a.request("/v1/flows/s/run", { method: "POST", body: "{}" });
+    await new Promise((r) => setTimeout(r, 10));
+    const second = await a.request("/v1/flows/s/run", { method: "POST", body: "{}" });
+    expect(second.status).toBe(503);
+    expect(second.headers.get("retry-after")).toBe("1");
+    release();
+    expect((await first).status).toBe(200);
+  });
+
+  it("logs one JSON line per run", async () => {
+    const lines: string[] = [];
+    const a = createApp({ engine: engine.value, log: (l) => lines.push(l) });
+    await a.request("/v1/flows/hello/run", { method: "POST", body: JSON.stringify({ input: { name: "Ann" } }) });
+    expect(JSON.parse(lines[0]!)).toMatchObject({ level: "info", msg: "run", flow: "hello", ok: true });
   });
 
   it("streams events over SSE, ending with the result", async () => {

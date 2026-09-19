@@ -20,6 +20,8 @@ LLM-backed decisions ask the model for a confidence value. It is the model's own
 <ParamField body="id" type="string" required>Name that nodes refer to.</ParamField>
 <ParamField body="type" type="string" required>One of the types above.</ParamField>
 <ParamField body="fallback" type="string[]">Provider ids to try, in order, when this provider returns an error.</ParamField>
+<ParamField body="circuitBreaker" type="{ failures, resetMs }">Opens after `failures` consecutive errors. While open, calls fail immediately, so a `fallback` provider takes over without waiting for a timeout. After `resetMs`, one trial call decides whether the circuit closes. Calls cancelled by the run do not count as failures.</ParamField>
+<ParamField body="rateLimit" type="{ perSecond, burst? }">Caps outgoing calls with a token bucket. Calls over the limit wait their turn, and stop waiting when the run is aborted. `burst` defaults to `perSecond`. A batched `decideMany` call counts as one call.</ParamField>
 
 ## openai
 
@@ -65,7 +67,7 @@ providers:
 
 ## Fallback and local-first
 
-`fallback` lets a flow prefer a local provider and fall back to a cloud one, or the reverse. When a provider has `decideMany` and fails, the engine retries each decision through the fallback chain.
+A rate limit sits inside the circuit breaker, and the fallback chain sits on top of both. `fallback` lets a flow prefer a local provider and fall back to a cloud one, or the reverse. When a provider has `decideMany` and fails, the engine retries each decision through the fallback chain.
 
 ## Add your own provider
 

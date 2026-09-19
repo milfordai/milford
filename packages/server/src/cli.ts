@@ -15,7 +15,13 @@ const { config, providers, flows } = (loaded as Extract<typeof loaded, { ok: tru
 const engine = createEngine({ registry: registerProviders(defaultRegistry()), providers, flows });
 if (!engine.ok) die(engine.error);
 
-const app = createApp({ engine: (engine as Extract<typeof engine, { ok: true }>).value, tokens: config.server.auth.tokens, runTimeoutMs: config.server.runTimeoutMs });
+const app = createApp({ engine: (engine as Extract<typeof engine, { ok: true }>).value, tokens: config.server.auth.tokens, runTimeoutMs: config.server.runTimeoutMs, maxConcurrentRuns: config.server.maxConcurrentRuns, maxBodyBytes: config.server.maxBodyBytes });
 if (!config.server.auth.tokens.length) console.warn("loage: no auth tokens configured, the API is open");
 const server = serve({ fetch: app.fetch, port: config.server.port }, (i) => console.log(`loage: ${flows.length} flow(s), listening on :${i.port}`));
-for (const sig of ["SIGINT", "SIGTERM"]) process.on(sig, () => server.close(() => process.exit(0)));
+// Stop accepting, let in-flight runs finish, but never hang forever.
+for (const sig of ["SIGINT", "SIGTERM"])
+  process.on(sig, () => {
+    setTimeout(() => process.exit(1), 10_000).unref();
+    server.close(() => process.exit(0));
+  });
+process.on("unhandledRejection", (e) => console.error("loage: unhandled rejection", e));

@@ -16,6 +16,8 @@ server:
   port: 8080
   auth: { tokens: ["${LOAGE_TOKEN}"] }
   runTimeoutMs: 30000
+  maxConcurrentRuns: 32
+  maxBodyBytes: 500000
 ```
 
 ## Environment variables
@@ -32,11 +34,17 @@ server:
 <ParamField body="flows" type="object[]">List of `{ file, id? }`. `file` is a flow JSON path relative to the config file. `id` overrides the id inside the file.</ParamField>
 <ParamField body="server.port" type="number" default="8080">Listen port.</ParamField>
 <ParamField body="server.auth.tokens" type="string[]" default="[]">Accepted bearer tokens. With none configured, the API is open and the server logs a warning.</ParamField>
-<ParamField body="server.runTimeoutMs" type="number">Per-run timeout.</ParamField>
+<ParamField body="server.runTimeoutMs" type="number" default="60000">Per-run timeout in milliseconds. The timeout aborts every in-flight `fetch` and provider call of the run.</ParamField>
+<ParamField body="server.maxConcurrentRuns" type="number" default="64">Runs allowed at once. Further requests get `503` with `Retry-After: 1`.</ParamField>
+<ParamField body="server.maxBodyBytes" type="number" default="1000000">Largest accepted request body. Larger requests get `413`.</ParamField>
 
 ## Validation at startup
 
 The server compiles every flow before it listens. It reports unknown providers, providers that lack a needed capability, invalid node configs, cycles and unknown node types, and exits without serving.
+
+## Logging and shutdown
+
+The server writes one JSON line to stdout for each finished run, with the flow id, `ok`, `runId` and duration in milliseconds. On `SIGTERM` or `SIGINT` it stops accepting connections and lets in-flight runs finish. It exits after 10 seconds even if a run is still going.
 
 ## JSON Schema
 

@@ -1,6 +1,7 @@
 import { compileFlow, type CompiledFlow, type ProviderCaps } from "./compile.js";
 import { lruCache } from "./cache.js";
 import { withFallback } from "./providers.js";
+import { withBreaker, withRateLimit } from "./resilience.js";
 import type { Registry } from "./registry.js";
 import { runFlow, type RunOptions } from "./run.js";
 import type { Cache, Flow, Provider, ProviderConfig, Result, RunResult } from "./types.js";
@@ -28,7 +29,11 @@ export function createEngine(cfg: EngineConfig): Result<Engine> {
     if (!factory) return { ok: false, error: `provider "${pc.id}": unknown type "${pc.type}"` };
     const p = factory(pc, { fetch: doFetch });
     if (!p.ok) return { ok: false, error: `provider "${pc.id}": ${p.error}` };
-    providers.set(pc.id, p.value);
+    // Rate limit innermost, breaker outside it, so a tripped circuit fails fast without queueing.
+    let wrapped = p.value;
+    if (pc.rateLimit) wrapped = withRateLimit(wrapped, pc.rateLimit);
+    if (pc.circuitBreaker) wrapped = withBreaker(wrapped, pc.circuitBreaker);
+    providers.set(pc.id, wrapped);
   }
   for (const pc of cfg.providers ?? []) {
     if (!pc.fallback?.length) continue;

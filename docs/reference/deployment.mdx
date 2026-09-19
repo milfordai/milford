@@ -37,3 +37,11 @@ Loage works without internet when its providers are local: a classifier behind t
 pnpm install && pnpm build
 node packages/server/dist/cli.js loage.config.yaml
 ```
+
+## Reliability settings
+
+Set these before you expose the server to other clients:
+
+- Keep `server.auth.tokens` set. Without tokens the API is open.
+- Tune `server.runTimeoutMs`, `server.maxConcurrentRuns` and `server.maxBodyBytes` to your workload. The defaults are 60 seconds, 64 runs and 1 MB.
+- Add `circuitBreaker` and a `fallback` to providers that can go down, and `rateLimit` to providers with quotas. See [providers](/providers/overview).

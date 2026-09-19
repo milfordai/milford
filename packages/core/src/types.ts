@@ -69,7 +69,16 @@ export interface Provider {
   decideMany?(reqs: DecideRequest[]): Promise<Result<Decision[]>>;
 }
 
-export type ProviderConfig = { id: string; type: string; fallback?: string[]; [key: string]: unknown };
+export type ProviderConfig = {
+  id: string;
+  type: string;
+  fallback?: string[];
+  /** Fail fast after repeated errors so `fallback` takes over. */
+  circuitBreaker?: { failures: number; resetMs: number };
+  /** Cap outgoing calls; callers wait their turn. */
+  rateLimit?: { perSecond: number; burst?: number };
+  [key: string]: unknown;
+};
 export type ProviderFactory = (config: ProviderConfig, deps: { fetch: typeof fetch }) => Result<Provider>;
 
 export type ProviderAccess = {
