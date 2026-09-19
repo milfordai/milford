@@ -7,10 +7,11 @@
   },
   "navigation": {
     "groups": [
-      {
-        "group": "Get started",
-        "pages": ["index"]
-      }
+      { "group": "Get started", "pages": ["index", "quickstart"] },
+      { "group": "Concepts", "pages": ["concepts/flows", "concepts/decisions"] },
+      { "group": "Building blocks", "pages": ["nodes/reference", "providers/overview"] },
+      { "group": "Guides", "pages": ["guides/home-automation"] },
+      { "group": "Reference", "pages": ["reference/config", "reference/http-api", "reference/deployment"] }
     ]
   }
 }

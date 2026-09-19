@@ -1,0 +1,22 @@
+{
+  "name": "@loage/server",
+  "version": "0.0.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": { "loage-server": "dist/cli.js" },
+  "files": ["dist", "loage.config.schema.json"],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && node dist/gen-schema.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.1",
+    "@loage/core": "workspace:*",
+    "@loage/providers": "workspace:*",
+    "hono": "^4.13.8",
+    "yaml": "^2.9.1",
+    "zod": "^4.6.5"
+  }
+}

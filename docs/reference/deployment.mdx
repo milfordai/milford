@@ -1,0 +1,39 @@
+---
+title: "Deployment"
+description: "Run Loage with Docker or directly with Node."
+---
+
+Loage is one Node process with no database. The image is built for `linux/amd64` and `linux/arm64`, so it runs on a Raspberry Pi or a small server.
+
+## Docker Compose
+
+Put `loage.config.yaml` and a `flows/` directory next to `docker-compose.yml`, then set your keys:
+
+```bash
+export LOAGE_TOKEN=change-me
+export ANTHROPIC_API_KEY=sk-ant-...
+docker compose up --build
+```
+
+The compose file mounts `./loage.config.yaml` and `./flows` read-only under `/config` and passes these variables through: `LOAGE_TOKEN`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GROQ_API_KEY`, `TYPESAFE_API_KEY`. Add the variables your config uses to the `environment` list.
+
+Flow file paths in the config are relative to the config file, so `./flows/triage.json` resolves to `/config/flows/triage.json`.
+
+<Note>
+  The image healthcheck calls `/health` on port 8080. If you change `server.port`, update the healthcheck.
+</Note>
+
+## Image publishing
+
+The `docker` GitHub Actions workflow builds a multi-arch image and pushes it to `ghcr.io/<owner>/<repo>` when you push a `v*` tag.
+
+## Running offline
+
+Loage works without internet when its providers are local: a classifier behind the `http` provider, or a local OpenAI-compatible server. Use `fallback` to prefer local providers and fall back to a cloud provider.
+
+## Without Docker
+
+```bash
+pnpm install && pnpm build
+node packages/server/dist/cli.js loage.config.yaml
+```
