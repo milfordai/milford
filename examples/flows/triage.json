@@ -1,0 +1,20 @@
+{
+  "id": "triage",
+  "nodes": [
+    { "id": "in", "type": "input" },
+    { "id": "team", "type": "decision", "config": { "provider": "main-llm", "kind": "choice", "prompt": "Which team should handle this message?", "options": ["billing", "technical", "sales"], "state": "{{input.text}}", "minConfidence": 0.6 } },
+    { "id": "billing", "type": "prompt", "config": { "template": "Route to billing." } },
+    { "id": "technical", "type": "prompt", "config": { "template": "Route to technical support." } },
+    { "id": "sales", "type": "prompt", "config": { "template": "Route to sales." } },
+    { "id": "human", "type": "prompt", "config": { "template": "Not sure. Route to a human." } },
+    { "id": "out", "type": "output" }
+  ],
+  "edges": [
+    { "from": "in", "to": "team" },
+    { "from": "team", "to": "billing", "when": { "path": "data.choice", "op": "eq", "value": "billing" } },
+    { "from": "team", "to": "technical", "when": { "path": "data.choice", "op": "eq", "value": "technical" } },
+    { "from": "team", "to": "sales", "when": { "path": "data.choice", "op": "eq", "value": "sales" } },
+    { "from": "team", "to": "human", "when": { "path": "data.choice", "op": "eq", "value": "none_of_these" } },
+    { "from": "billing", "to": "out" }, { "from": "technical", "to": "out" }, { "from": "sales", "to": "out" }, { "from": "human", "to": "out" }
+  ]
+}

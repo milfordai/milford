@@ -9,7 +9,51 @@
     "groups": [
       {
         "group": "Get started",
-        "pages": ["index"]
+        "pages": [
+          "index",
+          "quickstart"
+        ]
+      },
+      {
+        "group": "Concepts",
+        "pages": [
+          "concepts/flows",
+          "concepts/decisions"
+        ]
+      },
+      {
+        "group": "Building blocks",
+        "pages": [
+          "nodes/reference",
+          "providers/overview"
+        ]
+      },
+      {
+        "group": "Guides",
+        "pages": [
+          "guides/home-automation",
+          "guides/channels",
+          "guides/enterprise-integration",
+          "guides/mcp"
+        ]
+      },
+      {
+        "group": "Reference",
+        "pages": [
+          "reference/config",
+          "reference/http-api",
+          "reference/deployment"
+        ]
+      },
+      {
+        "group": "API reference",
+        "openapi": "openapi.yaml",
+        "pages": [
+          "GET /health",
+          "GET /v1/flows",
+          "POST /v1/flows/{id}/run",
+          "POST /hooks/{id}"
+        ]
       }
     ]
   }

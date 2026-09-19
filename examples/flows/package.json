@@ -1,0 +1,7 @@
+{
+  "name": "@loage/example-flows",
+  "private": true,
+  "type": "module",
+  "scripts": { "typecheck": "tsc --noEmit", "test": "vitest run" },
+  "dependencies": { "@loage/core": "workspace:*" }
+}

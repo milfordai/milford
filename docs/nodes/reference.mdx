@@ -1,0 +1,83 @@
+---
+title: "Built-in nodes"
+description: "Configuration reference for every built-in node type."
+---
+
+Nodes return `{ success, output?, data?, error? }`. `output` is a string that downstream templates can use. `data` carries structured values.
+
+## input
+
+Exposes the run input. `output` is the input as JSON, and `data` is the input object. Templates can read the input directly as `{{input.field}}`, so this node is optional.
+
+## prompt
+
+<ParamField body="template" type="string" required>Text with `{{path}}` placeholders. The rendered text is the node's `output`.</ParamField>
+
+## llm
+
+One chat call through a named provider. There is no loop and no tool use.
+
+<ParamField body="provider" type="string" required>Provider id. It must support `chat`.</ParamField>
+<ParamField body="model" type="string">Overrides the provider's default model.</ParamField>
+<ParamField body="system" type="string">System prompt.</ParamField>
+<ParamField body="preset" type="&#x22;summarize&#x22; | &#x22;classify&#x22; | &#x22;extract&#x22; | &#x22;rewrite&#x22; | &#x22;translate&#x22;">System prompt from a built-in preset. `system` wins if both are set.</ParamField>
+<ParamField body="prompt" type="string">Template for the user message. Defaults to the upstream outputs joined by blank lines.</ParamField>
+<ParamField body="maxInputChars" type="number">Truncates the message before the call. Unset means no truncation.</ParamField>
+
+## decision
+
+A typed decision. See [decisions](/concepts/decisions).
+
+<ParamField body="provider" type="string" required>Provider id. It must support `decide`.</ParamField>
+<ParamField body="kind" type="&#x22;choice&#x22; | &#x22;score&#x22; | &#x22;noul&#x22;" required>Decision type.</ParamField>
+<ParamField body="prompt" type="string" required>The question. Templated.</ParamField>
+<ParamField body="state" type="string">What to evaluate. Templated. Defaults to the whole run input as JSON.</ParamField>
+<ParamField body="options" type="string[] | string">Choices for `choice`, ordered levels (at least two) for `score`. A single `{{path}}` pulls a list from the run input.</ParamField>
+<ParamField body="minConfidence" type="number">Between 0 and 1. Gates `choice` decisions to `none_of_these`.</ParamField>
+<ParamField body="model" type="string">Overrides the provider's default model.</ParamField>
+
+## http
+
+A generic HTTP call. `url`, `headers` and `body` are templated. A response outside 200-299 fails the node.
+
+<ParamField body="url" type="string" required>Request URL.</ParamField>
+<ParamField body="method" type="&#x22;GET&#x22; | &#x22;POST&#x22; | &#x22;PUT&#x22; | &#x22;PATCH&#x22; | &#x22;DELETE&#x22;" default="GET">HTTP method.</ParamField>
+<ParamField body="headers" type="Record<string, string>">Request headers.</ParamField>
+<ParamField body="body" type="unknown">Sent as JSON. Strings are sent as they are.</ParamField>
+
+The result's `data` is `{ status, body }`, where `body` is parsed JSON when possible.
+
+## mcp
+
+Calls a tool on another MCP server. See [MCP](/guides/mcp).
+
+<ParamField body="server" type="string" required>Id of a server under `mcpServers`. Loading fails for an unknown id.</ParamField>
+<ParamField body="tool" type="string" required>Tool name. Templated.</ParamField>
+<ParamField body="arguments" type="object">Tool arguments. Templated.</ParamField>
+<ParamField body="allow" type="string[]">Tools this node may call. Required when `tool` is a template.</ParamField>
+
+`output` is the tool's text. `data` is its structured content, or the text parsed as JSON. A tool error fails the node.
+
+## output
+
+Marks the flow result.
+
+<ParamField body="template" type="string">Rendered as the output. Defaults to the upstream outputs joined by blank lines.</ParamField>
+
+`data` is the upstream node's `data`, or a map by node id when several nodes are live. The run result exposes this node's result as `output`.
+
+## Add your own node
+
+Register a node type on a `Registry`. Nothing else changes.
+
+```ts
+import { z } from "zod";
+import { defaultRegistry } from "@loage/core";
+
+const registry = defaultRegistry().registerNode("upper", {
+  configSchema: z.object({ from: z.string() }),
+  async run(ctx, upstream) {
+    return { success: true, output: (upstream[ctx.config.from]?.output ?? "").toUpperCase() };
+  },
+});
+```

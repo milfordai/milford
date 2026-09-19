@@ -1,0 +1,50 @@
+---
+title: "Home automation"
+description: "Turn a free-text command into device actions with a fan-out of small decisions."
+---
+
+The example in `examples/home-automation` converts commands such as "Get the coffee boiling" into a call to a home system. It uses a dozen small `choice` decisions instead of one large model call, and it rejects off-topic questions.
+
+## The flow
+
+<Steps>
+  <Step title="Ask in parallel">
+    Three decisions run at once on the command: which room, which device, and which device class (lights, fans, locks, appliances, speakers, thermostats). One action decision per class also runs, for example "What should happen to the lights?" with the options `on` and `off`.
+  </Step>
+  <Step title="Gate on confidence">
+    Each decision sets `minConfidence`. A low-confidence class becomes `none_of_these` and goes to a `noop` node. An unclear room or device goes to a `clarify` node.
+  </Step>
+  <Step title="Use only the matching class">
+    Each `call-<class>` node has `join: "all"`. It runs only when the class decision matched its class, the action is known, and the room and device were understood.
+  </Step>
+  <Step title="Call the home system">
+    The `http` node posts `{ device, room, action }` to `{{input.homeUrl}}/devices/{{device}}`. Point `homeUrl` at Home Assistant, an MQTT bridge or any webhook.
+  </Step>
+</Steps>
+
+The run result carries every decision with its options, probabilities and per-node latency.
+
+## Run it without hardware
+
+```bash
+cd examples/home-automation
+pnpm devices &          # fake device server on :9090
+export TYPESAFE_API_KEY=... LOAGE_TOKEN=change-me
+node ../../packages/server/dist/cli.js loage.config.yaml
+```
+
+```bash
+curl -s localhost:8080/v1/flows/home/run \
+  -H "authorization: Bearer $LOAGE_TOKEN" \
+  -d '{"input": {"command": "Lock up the whole house", "homeUrl": "http://127.0.0.1:9090", "rooms": ["kitchen", "garage", "whole-house"], "devices": ["front-door-lock", "coffee-machine"]}}'
+```
+
+`pnpm test` in the same directory runs the flow against a keyword-based stand-in provider and the fake device server, so it needs no API key.
+
+## Change the backend
+
+The flow names a provider `jev`. Point that id at any provider that can `decide`. The config in the example uses Jev with a local OpenAI-compatible server as a fallback. Replace the entry with an `openai`, `anthropic` or `http` provider and the flow stays the same.
+
+## Regenerate the flow
+
+`build-flow.ts` builds `flow.json` with the TypeScript `flow()` builder. Run `pnpm flow` after you edit it.

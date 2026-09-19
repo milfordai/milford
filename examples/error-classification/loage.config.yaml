@@ -1,0 +1,16 @@
+# yaml-language-server: $schema=../../packages/config/loage.config.schema.json
+providers:
+  # Swap the type for `openai` (any compatible server), `typesafe` or `http` (an on-prem classifier)
+  # without touching the flow.
+  - id: classifier
+    type: anthropic
+    apiKey: "${ANTHROPIC_API_KEY}"
+    model: claude-sonnet-5
+    circuitBreaker: { failures: 5, resetMs: 30000 }
+    rateLimit: { perSecond: 10 }
+flows:
+  - { file: ./flow.json }
+server:
+  port: 8080
+  auth: { tokens: ["${LOAGE_TOKEN}"] }
+run: { timeoutMs: 30000 }

@@ -1,0 +1,122 @@
+---
+title: "Enterprise integration"
+description: "Call Loage from Spring and other services that consume a message queue."
+---
+
+This guide covers a common setup: a service reads errors from a queue such as IBM MQ, decides whether each error is new, and classifies it. The service keeps the queue and calls Loage for the decisions.
+
+## Architecture
+
+```text
+IBM MQ ──> Spring service ──POST /v1/flows/classify-error/run──> Loage ──> model or classifier
+              │  (JMS, transactions,                               (stateless)
+              │   history lookup, storage)
+              └──> writes the new error to its own database
+```
+
+Loage runs as a separate container and speaks HTTP. This keeps three things where they already work well:
+
+- **The queue stays in your service.** JMS transactions, acknowledgement, redelivery and dead-letter queues are what your framework handles. Loage has no queue client and no database.
+- **State stays in your service.** Loage does not store past errors. Your service looks them up and passes them in as input, or a flow calls your service with an `http` node.
+- **One engine serves every framework.** Spring, Quarkus, .NET and Python services call the same flows and get the same results. The [OpenAPI spec](/reference/http-api) describes the API, so you can generate a client for each language instead of writing SDKs by hand.
+
+## The flow
+
+The `examples/error-classification` example holds two decisions that run in parallel:
+
+- `category`: a `choice` between `application-defect`, `infra-incident` and `user-exception`. With `minConfidence` set, an unclear error becomes `none_of_these`, which you can route to a person.
+- `duplicate`: a `noul` question that returns the probability that the error matches one of the previously recorded errors you pass in as `history`.
+
+```bash
+curl -s localhost:8080/v1/flows/classify-error/run \
+  -H "authorization: Bearer $LOAGE_TOKEN" \
+  -H "idempotency-key: ID:414d51204d5152...-1" \
+  -d '{"input": {
+    "service": "payments",
+    "message": "Connection refused: db-primary:5432",
+    "stackTrace": "",
+    "history": ["Connection refused: db-primary:5432"]
+  }}'
+```
+
+The result is in `output.data`. Read `output.data.category.choice`, `output.data.category.confidence` and `output.data.duplicate.noul`. Decide the threshold for "seen before" in your service, for example `noul >= 0.5`.
+
+## Call it from Spring
+
+The snippets in this section illustrate the pattern. They are not compiled in this repository.
+
+{/* TODO: compile and test these snippets against a Spring Boot 3.2+ project. */}
+
+```java
+@Component
+class LoageClient {
+    private final RestClient http;
+
+    LoageClient(@Value("${loage.url}") String url, @Value("${loage.token}") String token) {
+        var factory = new JdkClientHttpRequestFactory();
+        factory.setReadTimeout(Duration.ofSeconds(40)); // longer than run.timeoutMs
+        this.http = RestClient.builder()
+            .baseUrl(url)
+            .requestFactory(factory)
+            .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+            .build();
+    }
+
+    JsonNode run(String flow, Map<String, Object> input, String idempotencyKey) {
+        return http.post()
+            .uri("/v1/flows/{id}/run", flow)
+            .header("Idempotency-Key", idempotencyKey)
+            .body(Map.of("input", input))
+            .retrieve()
+            .body(JsonNode.class);
+    }
+}
+```
+
+```java
+@JmsListener(destination = "ERRORS.IN")
+void onError(TextMessage message) throws JMSException {
+    var error = parse(message.getText());
+    var result = loage.run("classify-error", Map.of(
+        "service", error.service(),
+        "message", error.message(),
+        "stackTrace", error.stackTrace(),
+        "history", history.similarTo(error)), message.getJMSMessageID());
+
+    if (!result.path("ok").asBoolean()) throw new IllegalStateException("classification failed");
+    var data = result.path("output").path("data");
+    // ... write the error, or link it to an existing one, using data.path("duplicate").path("noul")
+}
+```
+
+Throwing from a transacted listener rolls the message back, so the queue redelivers it and the dead-letter policy applies. Loage does not need to know about any of this.
+
+## Make retries safe
+
+Queues deliver at least once, and every run can cost model calls. Send an `Idempotency-Key` header, for example the JMS message id. A retry with the same key and input returns the first successful result with the header `Idempotent-Replayed: true`, without running the flow again.
+
+- If the same key arrives while the first request is still running, the second request waits and gets the same result.
+- A key reused with different input returns `422`.
+- Failed runs are not kept, so a retry after a failure runs again.
+- Results are kept for `server.idempotencyTtlMs` (10 minutes by default) in the memory of one server instance. They are lost on restart and not shared between replicas.
+
+<Warning>
+  With several Loage replicas behind a load balancer, a retry can reach a different replica and run again. Route by the `Idempotency-Key` header if duplicate calls are costly, or accept the occasional duplicate.
+</Warning>
+
+## Deploy
+
+Run Loage as a central service with two or more replicas, or as a sidecar next to a service that needs low latency. Loage is stateless apart from the idempotency results, circuit breaker state and rate limits, which each replica keeps in memory. See [deployment](/reference/deployment).
+
+Set `run.timeoutMs`, `run.maxConcurrentRuns` and the provider `circuitBreaker` and `rateLimit` values for your traffic. A `503` response includes `Retry-After`. Your client should back off and retry with the same idempotency key.
+
+## Choose where the data goes
+
+Error messages and stack traces can contain personal data or secrets. Each `decision` and `llm` node names its provider, so you can send sensitive flows to a provider that runs in your own network, such as an OpenAI-compatible server or a classifier behind the `http` provider, and use a cloud provider for other flows. See [providers](/providers/overview).
+
+## Not covered yet
+
+- Generated clients and a Spring Boot starter. Generate a client from the [OpenAPI spec](/reference/http-api) for now.
+- A shared idempotency store across replicas.
+- Metrics and trace propagation. Run logs are JSON lines on stdout.
+- Authentication other than static bearer tokens. Put Loage behind a gateway for OIDC or mutual TLS.
