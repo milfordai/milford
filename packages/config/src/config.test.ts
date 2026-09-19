@@ -30,7 +30,7 @@ describe("config", () => {
   it("defaults the run timeout and accepts provider resilience settings", () => {
     const r = parseConfig("providers: [{ id: a, type: openai, circuitBreaker: { failures: 3, resetMs: 5000 }, rateLimit: { perSecond: 2 } }]", "/", {}, read);
     if (!r.ok) throw new Error(r.error);
-    expect(r.value.config.server.runTimeoutMs).toBe(60000);
+    expect(r.value.config.run).toEqual({ timeoutMs: 60000, maxConcurrentRuns: 64 });
     expect(r.value.providers[0]).toMatchObject({ circuitBreaker: { failures: 3, resetMs: 5000 }, rateLimit: { perSecond: 2 } });
     expect(parseConfig("providers: [{ id: a, type: x, rateLimit: { perSecond: 0 } }]", "/", {}, read).ok).toBe(false);
   });

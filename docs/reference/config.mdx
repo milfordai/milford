@@ -15,9 +15,10 @@ flows:
 server:
   port: 8080
   auth: { tokens: ["${LOAGE_TOKEN}"] }
-  runTimeoutMs: 30000
-  maxConcurrentRuns: 32
   maxBodyBytes: 500000
+run:
+  timeoutMs: 30000
+  maxConcurrentRuns: 32
 ```
 
 ## Environment variables
@@ -35,12 +36,12 @@ server:
 <ParamField body="channels" type="object[]">List of [channels](/guides/channels). Each needs `id`, `type` (`slack`, `telegram` or `webhook`) and `flow`. Slack and Telegram channels also need an `allow` list. Webhook channels need a `secret`.</ParamField>
 <ParamField body="mcpServers" type="object[]">Other MCP servers that [`mcp` nodes](/guides/mcp) can call over Streamable HTTP. Each has `id`, `url` and optional `headers`.</ParamField>
 <ParamField body="mcp" type="object">
-  The [MCP server](/guides/mcp) (`loage-mcp`). Keys: `expose` (flow ids exposed as tools, empty by default), `transport` (`stdio` or `http`, default `stdio`), `host` (default `0.0.0.0`), `port` (default `8090`), `auth.tokens` (required for `http` beyond localhost), `runTimeoutMs` (default `60000`) and `maxConcurrentRuns` (default `64`).
+  The [MCP server](/guides/mcp) (`loage-mcp`). Keys: `expose` (flow ids exposed as tools, empty by default), `transport` (`stdio` or `http`, default `stdio`), `host` (default `0.0.0.0`), `port` (default `8090`), `auth.tokens` (required for `http` beyond localhost).
 </ParamField>
 <ParamField body="server.port" type="number" default="8080">Listen port.</ParamField>
 <ParamField body="server.auth.tokens" type="string[]" default="[]">Accepted bearer tokens. With none configured, the API is open and the server logs a warning.</ParamField>
-<ParamField body="server.runTimeoutMs" type="number" default="60000">Per-run timeout in milliseconds. The timeout aborts every in-flight `fetch` and provider call of the run.</ParamField>
-<ParamField body="server.maxConcurrentRuns" type="number" default="64">Runs allowed at once. Further requests get `503` with `Retry-After: 1`.</ParamField>
+<ParamField body="run.timeoutMs" type="number" default="60000">Per-run timeout in milliseconds. The timeout aborts every in-flight `fetch` and provider call of the run.</ParamField>
+<ParamField body="run.maxConcurrentRuns" type="number" default="64">Runs allowed at once, across the API, the MCP server and the channels. Further runs are rejected: the API answers `503` with `Retry-After: 1`, an MCP tool returns an error result, a webhook answers `503`, and a chat channel replies "Busy, try again shortly."</ParamField>
 <ParamField body="server.idempotencyTtlMs" type="number" default="600000">How long a successful run is kept for `Idempotency-Key` replays. See [enterprise integration](/guides/enterprise-integration).</ParamField>
 <ParamField body="server.maxBodyBytes" type="number" default="1000000">Largest accepted request body. Larger requests get `413`.</ParamField>
 
@@ -54,4 +55,4 @@ The server writes one JSON line to stdout for each finished run, with the flow i
 
 ## JSON Schema
 
-`packages/config/loage.config.schema.json` is generated from the config schema on every build. Point your editor's YAML language server at it for completion.
+`packages/config/loage.config.schema.json` is generated from the config schema by `pnpm build`. It is not committed. Point your editor's YAML language server at it for completion.

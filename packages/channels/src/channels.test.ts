@@ -69,6 +69,35 @@ describe("webhook", () => {
   });
 });
 
+describe("when the engine is busy", () => {
+  const busy = () => {
+    const e = createEngine({ registry: defaultRegistry(), flows: [flow("echo").node("p", "prompt", { template: "x" }).node("out", "output").edge("p", "out").build()], maxConcurrentRuns: 0 });
+    if (!e.ok) throw new Error(e.error);
+    return e.value;
+  };
+  it("answers a webhook with 503", async () => {
+    const secret = "0123456789abcdef";
+    const ch = build({ id: "w", type: "webhook", flow: "echo", secret }, { engine: busy() });
+    const ts = String(Math.floor(Date.now() / 1000));
+    const sig = `sha256=${createHmac("sha256", secret).update(`${ts}.{}`).digest("hex")}`;
+    expect((await ch.handle!(new Request("http://x/hooks/w", { method: "POST", body: "{}", headers: { "x-loage-timestamp": ts, "x-loage-signature": sig } }))).status).toBe(503);
+  });
+  it("tells a chat user to try again", async () => {
+    const sent: string[] = [];
+    let served = false;
+    const fetch = (async (url: string, init: RequestInit) => {
+      if (url.endsWith("/sendMessage")) return (sent.push(JSON.parse(init.body as string).text), new Response(JSON.stringify({ ok: true, result: {} })));
+      if (!served) return ((served = true), new Response(JSON.stringify({ ok: true, result: [{ update_id: 1, message: { text: "hi", from: { id: 42 }, chat: { id: 1 } } }] })));
+      return new Promise<Response>((_, rej) => init.signal!.addEventListener("abort", () => rej(new Error("aborted"))));
+    }) as unknown as typeof globalThis.fetch;
+    const ch = build({ id: "t", type: "telegram", flow: "echo", botToken: "1:x", allow: ["42"] }, { engine: busy(), fetch });
+    await ch.start();
+    await until(() => sent.length);
+    await ch.stop();
+    expect(sent).toEqual(["Busy, try again shortly."]);
+  });
+});
+
 describe("telegram", () => {
   const mockTelegram = (updates: unknown[][]) => {
     const sent: { chat_id: number; text: string }[] = [];

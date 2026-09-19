@@ -26,7 +26,7 @@ export function slack(cfg: z.infer<typeof slackConfig>, deps: ChannelDeps): Chan
   const WS = deps.WebSocket ?? WebSocket;
   const log = deps.log ?? console.log;
   const stopCtl = new AbortController();
-  const handle = createHandler({ id: cfg.id, type: "slack", engine: deps.engine, flow: cfg.flow, allow: cfg.allow, log, runTimeoutMs: deps.runTimeoutMs });
+  const handle = createHandler({ id: cfg.id, type: "slack", engine: deps.engine, flow: cfg.flow, allow: cfg.allow, log });
 
   const api = async (method: string, token: string, body?: object) => {
     const res = await doFetch(`${cfg.apiBase}/${method}`, {

@@ -23,7 +23,7 @@ Slack and Telegram messages reach the flow as this run input:
 
 The reply is the `output` of the flow's [output node](/nodes/reference). If the flow fails, the sender gets "Sorry, something went wrong." and the details go to the server log only. Replies are cut at 3800 characters.
 
-Messages that Slack or Telegram redeliver are dropped, and a channel runs at most four flows at once. Extra messages get "Busy, try again shortly."
+Messages that Slack or Telegram redeliver are dropped, and runs over `run.maxConcurrentRuns` get "Busy, try again shortly."
 
 ```yaml
 channels:

@@ -110,12 +110,3 @@ export interface Cache {
   get(key: string): NodeResult | undefined;
   set(key: string, value: NodeResult): void;
 }
-
-// --- Ingress port --------------------------------------------------------
-
-/** A source of runs (Slack, Telegram, a webhook). Adapters live outside core. */
-export interface Ingress {
-  id: string;
-  start(): Promise<void>;
-  stop(): Promise<void>;
-}

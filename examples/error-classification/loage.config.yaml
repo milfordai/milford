@@ -13,4 +13,4 @@ flows:
 server:
   port: 8080
   auth: { tokens: ["${LOAGE_TOKEN}"] }
-  runTimeoutMs: 30000
+run: { timeoutMs: 30000 }

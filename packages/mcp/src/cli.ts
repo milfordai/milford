@@ -19,9 +19,9 @@ const mcp = config.mcp;
 
 const registry = registerProviders(defaultRegistry());
 const egress = registerMcp(registry, config.mcpServers);
-const engine = createEngine({ registry, providers, flows });
+const engine = createEngine({ registry, providers, flows, ...config.run });
 if (!engine.ok) die(engine.error);
-const factory = createMcpFactory((engine as Extract<typeof engine, { ok: true }>).value, { expose: mcp.expose, runTimeoutMs: mcp.runTimeoutMs, maxConcurrentRuns: mcp.maxConcurrentRuns, log });
+const factory = createMcpFactory((engine as Extract<typeof engine, { ok: true }>).value, { expose: mcp.expose, log });
 if (!factory.ok) die(factory.error);
 const make = (factory as Extract<typeof factory, { ok: true }>).value;
 

@@ -6,8 +6,6 @@ import type { Channel, ChannelDeps } from "./types.js";
 import { webhook, webhookConfig } from "./webhook.js";
 
 export * from "./types.js";
-export { createHandler } from "./handler.js";
-export { slack, telegram, webhook };
 
 const ChannelConfig = z.discriminatedUnion("type", [webhookConfig, slackConfig, telegramConfig]);
 

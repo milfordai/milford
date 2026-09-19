@@ -4,14 +4,20 @@ import { withFallback } from "./providers.js";
 import { withBreaker, withRateLimit } from "./resilience.js";
 import type { Registry } from "./registry.js";
 import { runFlow, type RunOptions } from "./run.js";
-import type { Cache, Flow, Provider, ProviderConfig, Result, RunResult } from "./types.js";
+import type { Flow, Provider, ProviderConfig, Result, RunResult } from "./types.js";
+
+/** The `error` of a run rejected by `maxConcurrentRuns`. Callers can map it to their own "busy" response. */
+export const TOO_MANY_RUNS = "too many concurrent runs";
 
 export type EngineConfig = {
   registry: Registry;
   providers?: ProviderConfig[];
   flows?: Flow[];
   fetch?: typeof fetch;
-  cache?: Cache;
+  /** Runs allowed at once. Further runs are rejected with `TOO_MANY_RUNS`. Unlimited by default. */
+  maxConcurrentRuns?: number;
+  /** Default per-run timeout in milliseconds, unless a run passes its own. */
+  timeoutMs?: number;
 };
 
 export type Engine = {
@@ -54,7 +60,8 @@ export function createEngine(cfg: EngineConfig): Result<Engine> {
     compiled.set(f.id, c.value);
   }
 
-  const cache = cfg.cache ?? lruCache();
+  const cache = lruCache();
+  let active = 0;
   return {
     ok: true,
     value: {
@@ -62,7 +69,13 @@ export function createEngine(cfg: EngineConfig): Result<Engine> {
       async run(flowId, input = {}, opts = {}) {
         const c = compiled.get(flowId);
         if (!c) return { ok: false, error: `unknown flow "${flowId}"` };
-        return { ok: true, value: await runFlow(c, { registry: cfg.registry, providers, fetch: doFetch, cache }, { ...opts, input }) };
+        if (active >= (cfg.maxConcurrentRuns ?? Infinity)) return { ok: false, error: TOO_MANY_RUNS };
+        active++;
+        try {
+          return { ok: true, value: await runFlow(c, { registry: cfg.registry, providers, fetch: doFetch, cache }, { ...opts, timeoutMs: opts.timeoutMs ?? cfg.timeoutMs, input }) };
+        } finally {
+          active--;
+        }
       },
     },
   };
