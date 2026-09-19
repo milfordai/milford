@@ -4,10 +4,14 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "bin": { "loage-mcp": "dist/cli.js" },
-  "files": ["dist"],
+  "bin": {
+    "loage-mcp": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
@@ -19,5 +23,29 @@
     "@modelcontextprotocol/client": "^2.0.0",
     "@modelcontextprotocol/server": "^2.0.0",
     "zod": "^4.6.5"
+  },
+  "description": "Loage MCP server that exposes flows as tools to LLM clients, and the mcp node for calling other MCP servers.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/loage-ai/loage.git",
+    "directory": "packages/mcp"
+  },
+  "homepage": "https://loage.mintlify.site",
+  "bugs": {
+    "url": "https://github.com/loage-ai/loage/issues"
+  },
+  "keywords": [
+    "loage",
+    "mcp",
+    "model-context-protocol",
+    "llm",
+    "tools"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

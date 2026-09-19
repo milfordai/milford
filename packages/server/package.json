@@ -11,7 +11,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
@@ -26,5 +26,29 @@
   },
   "devDependencies": {
     "yaml": "^2.9.1"
+  },
+  "description": "Loage HTTP server: run flows over REST with server-sent events, idempotency keys and bearer auth.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/loage-ai/loage.git",
+    "directory": "packages/server"
+  },
+  "homepage": "https://loage.mintlify.site",
+  "bugs": {
+    "url": "https://github.com/loage-ai/loage/issues"
+  },
+  "keywords": [
+    "loage",
+    "workflow",
+    "http",
+    "sse",
+    "openapi"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

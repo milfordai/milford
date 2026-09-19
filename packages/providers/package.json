@@ -14,12 +14,36 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
     "@loage/core": "workspace:*",
     "zod": "^4.6.5"
+  },
+  "description": "Loage provider adapters: OpenAI-compatible servers, Anthropic, Jev and a generic HTTP classifier.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/loage-ai/loage.git",
+    "directory": "packages/providers"
+  },
+  "homepage": "https://loage.mintlify.site",
+  "bugs": {
+    "url": "https://github.com/loage-ai/loage/issues"
+  },
+  "keywords": [
+    "loage",
+    "llm",
+    "openai",
+    "anthropic",
+    "classifier"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

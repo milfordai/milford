@@ -4,13 +4,39 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
     "zod": "^4.6.5"
+  },
+  "description": "Loage core: flow compiler, executor, built-in nodes and the provider port. No I/O, no vendor code.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/loage-ai/loage.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://loage.mintlify.site",
+  "bugs": {
+    "url": "https://github.com/loage-ai/loage/issues"
+  },
+  "keywords": [
+    "loage",
+    "workflow",
+    "llm",
+    "decision",
+    "engine"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
