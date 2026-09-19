@@ -1,9 +1,10 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import type { Channel } from "@loage/channels";
-import type { Engine } from "@loage/core";
+import type { Engine, RunResult } from "@loage/core";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { streamSSE } from "hono/streaming";
+import { createIdempotencyStore } from "./idempotency.js";
 
 const digest = (s: string) => createHash("sha256").update(s).digest();
 
@@ -13,6 +14,8 @@ export type AppOptions = {
   runTimeoutMs?: number;
   maxConcurrentRuns?: number;
   maxBodyBytes?: number;
+  /** How long a completed run is kept for `Idempotency-Key` replays. */
+  idempotencyTtlMs?: number;
   /** Channels with a `handle` are mounted at POST /hooks/:id. */
   channels?: Channel[];
   /** One JSON line per finished run. Defaults to stdout; pass a no-op to silence. */
@@ -20,9 +23,10 @@ export type AppOptions = {
 };
 
 /** HTTP surface over an Engine. */
-export function createApp({ engine, tokens = [], runTimeoutMs, maxConcurrentRuns = 64, maxBodyBytes = 1_000_000, channels = [], log = console.log }: AppOptions): Hono {
+export function createApp({ engine, tokens = [], runTimeoutMs, maxConcurrentRuns = 64, maxBodyBytes = 1_000_000, idempotencyTtlMs = 600_000, channels = [], log = console.log }: AppOptions): Hono {
   const app = new Hono();
   let active = 0;
+  const idempotent = createIdempotencyStore<RunResult>(idempotencyTtlMs);
   app.onError((err, c) => {
     log(JSON.stringify({ level: "error", msg: "unhandled", error: err.message }));
     return c.json({ error: "internal error" }, 500);
@@ -58,18 +62,37 @@ export function createApp({ engine, tokens = [], runTimeoutMs, maxConcurrentRuns
     }
     const input = body.input ?? {};
     if (typeof input !== "object" || Array.isArray(input)) return c.json({ error: "input must be an object" }, 400);
+    const sse = !!c.req.header("accept")?.includes("text/event-stream");
+
+    // Idempotency-Key applies to JSON runs only. Replays do not count against the concurrency cap.
+    const key = sse ? undefined : c.req.header("idempotency-key");
+    const ikey = key && `${id}\n${key}`;
+    const fingerprint = JSON.stringify(input);
+    if (ikey) {
+      const hit = idempotent.get(ikey);
+      if (hit) {
+        if (hit.fingerprint !== fingerprint) return c.json({ error: "Idempotency-Key was already used with a different request" }, 422);
+        const replay = await hit.done; // waits when the first request is still running
+        if (replay) return c.json(replay, 200, { "idempotent-replayed": "true" });
+      }
+    }
     if (active >= maxConcurrentRuns) return c.json({ error: "too many concurrent runs" }, 503, { "retry-after": "1" });
     const opts = { timeoutMs: runTimeoutMs };
     const started = performance.now();
     const done = (ok: boolean, runId?: string) => log(JSON.stringify({ level: "info", msg: "run", flow: id, ok, runId, ms: Math.round(performance.now() - started) }));
 
-    if (!c.req.header("accept")?.includes("text/event-stream")) {
+    if (!sse) {
       active++;
+      const finish = ikey ? idempotent.begin(ikey, fingerprint) : undefined;
+      let kept: RunResult | undefined;
       try {
         const r = await engine.run(id, input, { ...opts, signal: c.req.raw.signal });
         done(r.ok && r.value.ok, r.ok ? r.value.runId : undefined);
+        // Only successful runs are kept, so a retry after a failure runs again.
+        if (r.ok && r.value.ok) kept = r.value;
         return r.ok ? c.json(r.value) : c.json({ error: r.error }, 500);
       } finally {
+        finish?.(kept);
         active--;
       }
     }

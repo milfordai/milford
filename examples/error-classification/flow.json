@@ -1,0 +1,37 @@
+{
+  "id": "classify-error",
+  "nodes": [
+    { "id": "in", "type": "input" },
+    {
+      "id": "category",
+      "type": "decision",
+      "config": {
+        "provider": "classifier",
+        "kind": "choice",
+        "prompt": "What kind of error is this?",
+        "options": ["application-defect", "infra-incident", "user-exception"],
+        "state": "Service: {{input.service}}\nMessage: {{input.message}}\nStack trace:\n{{input.stackTrace}}",
+        "minConfidence": 0.6
+      },
+      "retry": { "attempts": 2, "backoffMs": 300 }
+    },
+    {
+      "id": "duplicate",
+      "type": "decision",
+      "config": {
+        "provider": "classifier",
+        "kind": "noul",
+        "prompt": "Is this the same problem as one of the previously recorded errors?",
+        "state": "New error:\n{{input.message}}\n\nPreviously recorded errors:\n{{input.history}}"
+      },
+      "retry": { "attempts": 2, "backoffMs": 300 }
+    },
+    { "id": "out", "type": "output", "config": { "template": "category={{category}} duplicateProbability={{duplicate}}" } }
+  ],
+  "edges": [
+    { "from": "in", "to": "category" },
+    { "from": "in", "to": "duplicate" },
+    { "from": "category", "to": "out" },
+    { "from": "duplicate", "to": "out" }
+  ]
+}

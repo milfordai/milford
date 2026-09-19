@@ -1,6 +1,8 @@
 import { createChannels } from "@loage/channels";
 import { createEngine, defaultRegistry, type Provider } from "@loage/core";
 import { createHmac } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { parse } from "yaml";
 import { describe, expect, it } from "vitest";
 import { createApp } from "./app.js";
 import { parseConfig } from "./config.js";
@@ -133,5 +135,77 @@ describe("webhook channels", () => {
   it("404s unknown hooks and still guards /v1", async () => {
     expect((await app.request("/hooks/nope", { method: "POST", body: "{}" })).status).toBe(404);
     expect((await app.request("/v1/flows")).status).toBe(401);
+  });
+});
+
+describe("idempotency", () => {
+  const counted = () => {
+    let runs = 0;
+    const engine = createEngine({
+      registry: defaultRegistry().registerNode("count", { run: async () => ({ success: true, output: String(++runs) }) }).registerNode("fail", { run: async () => ({ success: false, error: "no" }) }),
+      flows: [
+        { id: "c", nodes: [{ id: "a", type: "count" }], edges: [] },
+        { id: "f", nodes: [{ id: "a", type: "fail" }], edges: [] },
+      ],
+    });
+    if (!engine.ok) throw new Error(engine.error);
+    return { app: createApp({ engine: engine.value, log: () => {} }), runs: () => runs };
+  };
+  const post = (app: ReturnType<typeof createApp>, flow: string, input: object, key?: string) =>
+    app.request(`/v1/flows/${flow}/run`, { method: "POST", headers: key ? { "idempotency-key": key } : {}, body: JSON.stringify({ input }) });
+
+  it("replays the first result for the same key and input", async () => {
+    const { app, runs } = counted();
+    const first = await post(app, "c", { n: 1 }, "msg-1");
+    const again = await post(app, "c", { n: 1 }, "msg-1");
+    expect(first.headers.get("idempotent-replayed")).toBeNull();
+    expect(again.headers.get("idempotent-replayed")).toBe("true");
+    expect((await again.json()).runId).toBe((await first.json()).runId);
+    expect(runs()).toBe(1);
+  });
+
+  it("runs once when the same key arrives while the first request is still running", async () => {
+    const { app, runs } = counted();
+    const [a, b] = await Promise.all([post(app, "c", {}, "k"), post(app, "c", {}, "k")]);
+    expect((await a.json()).runId).toBe((await b.json()).runId);
+    expect(runs()).toBe(1);
+  });
+
+  it("rejects the same key with a different input, and separates keys per flow", async () => {
+    const { app, runs } = counted();
+    await post(app, "c", { n: 1 }, "k");
+    expect((await post(app, "c", { n: 2 }, "k")).status).toBe(422);
+    expect((await post(app, "f", { n: 1 }, "k")).status).toBe(200); // same key, other flow
+    expect(runs()).toBe(1);
+  });
+
+  it("does not keep failed runs, so a retry runs again", async () => {
+    const { app } = counted();
+    const first = await (await post(app, "f", {}, "k")).json();
+    const second = await post(app, "f", {}, "k");
+    expect(first.ok).toBe(false);
+    expect(second.headers.get("idempotent-replayed")).toBeNull();
+    expect((await second.json()).runId).not.toBe(first.runId);
+  });
+
+  it("does nothing without a key", async () => {
+    const { app, runs } = counted();
+    await post(app, "c", {});
+    await post(app, "c", {});
+    expect(runs()).toBe(2);
+  });
+});
+
+describe("openapi spec", () => {
+  it("documents exactly the routes the app serves", () => {
+    const spec = parse(readFileSync(new URL("../../../docs/openapi.yaml", import.meta.url), "utf8")) as { paths: Record<string, Record<string, unknown>> };
+    const documented = Object.entries(spec.paths).flatMap(([path, ops]) => Object.keys(ops).map((m) => `${m.toUpperCase()} ${path}`)).sort();
+    const engine = createEngine({ registry: defaultRegistry() });
+    if (!engine.ok) throw new Error(engine.error);
+    const served = createApp({ engine: engine.value, log: () => {} }).routes
+      .filter((r) => r.method !== "ALL" && !r.path.includes("*"))
+      .map((r) => `${r.method} ${r.path.replace(/:(\w+)/g, "{$1}")}`)
+      .sort();
+    expect(documented).toEqual(served);
   });
 });

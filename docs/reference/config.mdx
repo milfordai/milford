@@ -37,6 +37,7 @@ server:
 <ParamField body="server.auth.tokens" type="string[]" default="[]">Accepted bearer tokens. With none configured, the API is open and the server logs a warning.</ParamField>
 <ParamField body="server.runTimeoutMs" type="number" default="60000">Per-run timeout in milliseconds. The timeout aborts every in-flight `fetch` and provider call of the run.</ParamField>
 <ParamField body="server.maxConcurrentRuns" type="number" default="64">Runs allowed at once. Further requests get `503` with `Retry-After: 1`.</ParamField>
+<ParamField body="server.idempotencyTtlMs" type="number" default="600000">How long a successful run is kept for `Idempotency-Key` replays. See [enterprise integration](/guides/enterprise-integration).</ParamField>
 <ParamField body="server.maxBodyBytes" type="number" default="1000000">Largest accepted request body. Larger requests get `413`.</ParamField>
 
 ## Validation at startup
