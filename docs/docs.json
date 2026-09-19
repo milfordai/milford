@@ -56,5 +56,8 @@
         ]
       }
     ]
+  },
+  "background": {
+    "decoration": "gradient"
   }
 }
