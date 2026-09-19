@@ -44,7 +44,6 @@ A generic HTTP call. `url`, `headers` and `body` are templated. A response outsi
 <ParamField body="method" type="&#x22;GET&#x22; | &#x22;POST&#x22; | &#x22;PUT&#x22; | &#x22;PATCH&#x22; | &#x22;DELETE&#x22;" default="GET">HTTP method.</ParamField>
 <ParamField body="headers" type="Record<string, string>">Request headers.</ParamField>
 <ParamField body="body" type="unknown">Sent as JSON. Strings are sent as they are.</ParamField>
-<ParamField body="egress" type="&#x22;local&#x22; | &#x22;controller&#x22;" default="local">Reserved for multi-node setups. Version 1 always runs the call locally.</ParamField>
 
 The result's `data` is `{ status, body }`, where `body` is parsed JSON when possible.
 

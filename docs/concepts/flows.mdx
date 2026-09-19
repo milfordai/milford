@@ -48,7 +48,7 @@ An edge is skipped when its source failed, was skipped, or its condition is fals
 
 `compileFlow` runs once at startup. It checks node types and configs, provider capabilities, duplicate ids, unknown edge targets and cycles, then sorts nodes into levels. Runs walk the precomputed levels.
 
-- Nodes in one level run in parallel, up to the `concurrency` option.
+- Nodes in one level run in parallel.
 - A failed node does not stop unrelated branches. Its downstream nodes are skipped, and `ok` is `false` in the result.
 - A run supports a `timeoutMs` and an `AbortSignal`. Both reach every `fetch` and provider call.
 - Nodes return results and do not throw. A thrown error is caught and recorded as a node failure.

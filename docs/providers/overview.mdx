@@ -11,7 +11,6 @@ A provider is a named backend with capabilities: `chat`, `decide`, or both. Node
 | `anthropic` | chat, decide | Decisions use forced tool use with a JSON schema. |
 | `typesafe` | decide | Jev. Probabilities and confidence. Batches decisions that share a state. |
 | `http` | decide, chat | Any JSON endpoint, with a request template and JSONPath mapping. |
-| `sagemaker` | decide | `InvokeEndpoint` signed with SigV4 over `fetch`. Same mapping as `http`. |
 
 LLM-backed decisions ask the model for a confidence value. It is the model's own estimate, not a calibrated probability. Use `typesafe` or a trained classifier when you need real probabilities.
 
@@ -42,25 +41,22 @@ LLM-backed decisions ask the model for a confidence value. It is the model's own
 <ParamField body="baseUrl" type="string" default="https://api.typesafe.ai">Base URL.</ParamField>
 <ParamField body="model" type="string" default="jev-latest">Model.</ParamField>
 
-## http and sagemaker
+## http
 
-Both send a templated JSON request and map the response with JSONPath expressions.
+Sends a templated JSON request and maps the response with JSONPath expressions.
 
 <ParamField body="request" type="object">Body template. Variables: `kind`, `prompt`, `state`, `options`, `model`. A value that is exactly `"{{options}}"` keeps its list type.</ParamField>
 <ParamField body="map" type="object">
   JSONPath expressions (`$.a.b[0].c`): `choice`, `probabilities`, `confidence`, `score`, `noul`, `text`. `probabilities` is an object of option to probability, or an array aligned with the request options. Without `choice`, the highest probability wins. Without `confidence`, the winning probability is used.
 </ParamField>
 
-`http` also takes `url` (required), `headers`, and `capabilities` (default `["decide"]`). `sagemaker` takes `endpoint`, `region`, `accessKeyId`, `secretAccessKey` and an optional `sessionToken`.
+It also takes `url` (required), `headers`, and `capabilities` (default `["decide"]`).
 
 ```yaml
 providers:
   - id: intent-clf
-    type: sagemaker
-    endpoint: my-endpoint
-    region: eu-west-1
-    accessKeyId: "${AWS_ACCESS_KEY_ID}"
-    secretAccessKey: "${AWS_SECRET_ACCESS_KEY}"
+    type: http
+    url: http://classifier.internal/predict
     request: { text: "{{state}}", labels: "{{options}}" }
     map: { choice: "$.predictions[0].label", probabilities: "$.predictions[0].scores" }
 ```

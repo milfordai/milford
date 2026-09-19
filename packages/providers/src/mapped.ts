@@ -1,4 +1,4 @@
-import { renderDeep, type DecideRequest, type Decision, type Result } from "@loage/core";
+import type { DecideRequest, Decision, Result } from "@loage/core";
 import { z } from "zod";
 import { jsonPath } from "./jsonpath.js";
 import { err } from "./util.js";
@@ -14,9 +14,6 @@ export const mapSchema = z.object({
   text: z.string().optional(),
 });
 export type Mapping = z.infer<typeof mapSchema>;
-
-export const fillRequest = (template: unknown, req: DecideRequest | { prompt: string; system?: string; model?: string }): Result<unknown> =>
-  renderDeep(template, { ...req, signal: undefined });
 
 export function decisionFrom(req: DecideRequest, res: unknown, map: Mapping): Result<Decision> {
   const at = (p?: string) => (p ? jsonPath(res, p) : undefined);

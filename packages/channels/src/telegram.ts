@@ -10,8 +10,6 @@ export const telegramConfig = z.object({
   /** Telegram user ids allowed to run the flow. Required: channels are deny by default. */
   allow: z.array(z.string()).min(1),
   pollTimeoutSec: z.number().int().positive().default(30),
-  /** Override for tests or a local Bot API server. */
-  apiBase: z.string().default("https://api.telegram.org"),
 });
 
 type Update = { update_id: number; message?: { text?: string; from?: { id: number; is_bot?: boolean }; chat: { id: number } } };
@@ -24,7 +22,7 @@ export function telegram(cfg: z.infer<typeof telegramConfig>, deps: ChannelDeps)
   const handle = createHandler({ id: cfg.id, type: "telegram", engine: deps.engine, flow: cfg.flow, allow: cfg.allow, log });
   // The token is part of the URL, so errors must never echo it.
   const call = async (method: string, body: object, signal?: AbortSignal) => {
-    const res = await doFetch(`${cfg.apiBase}/bot${cfg.botToken}/${method}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body), signal });
+    const res = await doFetch(`https://api.telegram.org/bot${cfg.botToken}/${method}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body), signal });
     const json = (await res.json()) as { ok: boolean; result?: unknown; description?: string };
     if (!json.ok) throw new Error(`telegram ${method}: ${json.description ?? res.status}`);
     return json.result;
