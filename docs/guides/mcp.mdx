@@ -97,9 +97,37 @@ The HTTP transport requires `mcp.auth.tokens` unless `mcp.host` is `127.0.0.1`, 
   </Tab>
 </Tabs>
 
+## Call other MCP servers
+
+The `mcp` node calls a tool on another MCP server, so a flow can reach systems that already publish MCP tools. Declare each server once under `mcpServers`, then refer to it by id. Loage connects to remote servers over Streamable HTTP. It does not start local stdio servers.
+
+```yaml
+mcpServers:
+  - id: crm
+    url: https://crm.example.com/mcp
+    headers: { authorization: "Bearer ${CRM_TOKEN}" }
+```
+
+```json
+{ "id": "lookup", "type": "mcp", "config": { "server": "crm", "tool": "find_customer", "arguments": { "email": "{{input.email}}" } } }
+```
+
+`arguments` are templated like other node configs. The result's `output` is the tool's text, and `data` is its structured content, or the text parsed as JSON when it is JSON. A tool that reports an error fails the node, and `retry` and `timeoutMs` on the node apply as usual. The connection is opened on first use and dropped after an error, so the next call reconnects.
+
+### Let a decision pick the tool
+
+The `tool` can be a template, so a `decision` node can choose which tool runs. The node then needs an `allow` list, and Loage refuses to call any tool outside it. Loading the flow fails when a templated `tool` has no `allow` list.
+
+```json
+{ "id": "route", "type": "decision", "config": { "provider": "classifier", "kind": "choice", "prompt": "Which system holds this?", "options": ["find_customer", "find_invoice"], "state": "{{input.question}}", "minConfidence": 0.6 } },
+{ "id": "lookup", "type": "mcp", "config": { "server": "crm", "tool": "{{route}}", "allow": ["find_customer", "find_invoice"], "arguments": { "query": "{{input.question}}" } } }
+```
+
+The graph stays fixed. A decision chooses among tools that you list, and nothing loops or plans.
+
 ## Limits
 
-- Tools only. Loage does not expose MCP resources or prompts.
+- Tools only. Loage does not expose MCP resources or prompts, and the `mcp` node calls tools only.
 - A run is limited by `mcp.runTimeoutMs` (default 60 seconds), and `mcp.maxConcurrentRuns` (default 64) caps parallel calls. Extra calls get an error result.
 - Authentication is static bearer tokens. Put the server behind a gateway for OIDC or mutual TLS.
 - MCP calls have no idempotency key.

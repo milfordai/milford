@@ -33,6 +33,7 @@ server:
 <ParamField body="providers" type="object[]">List of [providers](/providers/overview). Each needs `id` and `type`. Other keys depend on the type.</ParamField>
 <ParamField body="flows" type="object[]">List of `{ file, id? }`. `file` is a flow JSON path relative to the config file. `id` overrides the id inside the file.</ParamField>
 <ParamField body="channels" type="object[]">List of [channels](/guides/channels). Each needs `id`, `type` (`slack`, `telegram` or `webhook`) and `flow`. Slack and Telegram channels also need an `allow` list. Webhook channels need a `secret`.</ParamField>
+<ParamField body="mcpServers" type="object[]">Other MCP servers that [`mcp` nodes](/guides/mcp) can call over Streamable HTTP. Each has `id`, `url` and optional `headers`.</ParamField>
 <ParamField body="mcp" type="object">
   The [MCP server](/guides/mcp) (`loage-mcp`). Keys: `expose` (flow ids exposed as tools, empty by default), `transport` (`stdio` or `http`, default `stdio`), `host` (default `0.0.0.0`), `port` (default `8090`), `auth.tokens` (required for `http` beyond localhost), `runTimeoutMs` (default `60000`) and `maxConcurrentRuns` (default `64`).
 </ParamField>

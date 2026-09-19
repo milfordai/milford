@@ -3,6 +3,7 @@ import { loadConfig } from "@loage/config";
 import { createEngine, defaultRegistry } from "@loage/core";
 import { registerProviders } from "@loage/providers";
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
+import { registerMcp } from "./egress.js";
 import { serveHttp } from "./http.js";
 import { createMcpFactory } from "./server.js";
 
@@ -16,7 +17,9 @@ if (!loaded.ok) die(loaded.error);
 const { config, providers, flows } = (loaded as Extract<typeof loaded, { ok: true }>).value;
 const mcp = config.mcp;
 
-const engine = createEngine({ registry: registerProviders(defaultRegistry()), providers, flows });
+const registry = registerProviders(defaultRegistry());
+const egress = registerMcp(registry, config.mcpServers);
+const engine = createEngine({ registry, providers, flows });
 if (!engine.ok) die(engine.error);
 const factory = createMcpFactory((engine as Extract<typeof engine, { ok: true }>).value, { expose: mcp.expose, runTimeoutMs: mcp.runTimeoutMs, maxConcurrentRuns: mcp.maxConcurrentRuns, log });
 if (!factory.ok) die(factory.error);
@@ -37,5 +40,5 @@ if (mcp.transport === "stdio") {
 for (const sig of ["SIGINT", "SIGTERM"])
   process.on(sig, () => {
     setTimeout(() => process.exit(1), 10_000).unref();
-    void close().then(() => process.exit(0));
+    void Promise.all([close(), egress.close()]).then(() => process.exit(0));
   });

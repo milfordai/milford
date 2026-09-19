@@ -20,6 +20,7 @@
     "@loage/channels": "workspace:*",
     "@loage/config": "workspace:*",
     "@loage/core": "workspace:*",
+    "@loage/mcp": "workspace:*",
     "@loage/providers": "workspace:*",
     "hono": "^4.13.8"
   },

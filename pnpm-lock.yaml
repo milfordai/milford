@@ -119,6 +119,9 @@ importers:
       '@loage/core':
         specifier: workspace:*
         version: link:../core
+      '@loage/mcp':
+        specifier: workspace:*
+        version: link:../mcp
       '@loage/providers':
         specifier: workspace:*
         version: link:../providers
