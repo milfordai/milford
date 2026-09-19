@@ -9,10 +9,7 @@
     "groups": [
       {
         "group": "Get started",
-        "pages": [
-          "index",
-          "quickstart"
-        ]
+        "pages": []
       },
       {
         "group": "Concepts",
