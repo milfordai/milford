@@ -6,13 +6,11 @@
     "primary": "#16A34A"
   },
   "navigation": {
-    "groups": [
+    "pages": [
+      "index",
       {
         "group": "Get started",
-        "pages": [
-          "index",
-          "quickstart"
-        ]
+        "pages": []
       },
       {
         "group": "Concepts",
@@ -56,5 +54,16 @@
         ]
       }
     ]
+  },
+  "background": {
+    "decoration": "gradient"
+  },
+  "favicon": {
+    "light": "/images/loage-02.png",
+    "dark": "/images/loage-02.png"
+  },
+  "logo": {
+    "light": "/images/loage-02.png",
+    "dark": "/images/loage-02.png"
   }
 }
