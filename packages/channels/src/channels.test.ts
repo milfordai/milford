@@ -1,4 +1,4 @@
-import { createEngine, defaultRegistry, flow, type Engine } from "@milford/core";
+import { createEngine, defaultRegistry, flow, type Engine } from "@milfordai/core";
 import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { createChannels } from "./index.js";

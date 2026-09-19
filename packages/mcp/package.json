@@ -1,5 +1,5 @@
 {
-  "name": "@milford/mcp",
+  "name": "@milfordai/mcp",
   "version": "0.0.1",
   "type": "module",
   "main": "dist/index.js",
@@ -17,9 +17,9 @@
   },
   "dependencies": {
     "@hono/node-server": "^2.1.1",
-    "@milford/config": "workspace:*",
-    "@milford/core": "workspace:*",
-    "@milford/providers": "workspace:*",
+    "@milfordai/config": "workspace:*",
+    "@milfordai/core": "workspace:*",
+    "@milfordai/providers": "workspace:*",
     "@modelcontextprotocol/client": "^2.0.0",
     "@modelcontextprotocol/server": "^2.0.0",
     "zod": "^4.6.5"

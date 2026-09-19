@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-import { createChannels } from "@milford/channels";
-import { loadConfig } from "@milford/config";
-import { createEngine, defaultRegistry } from "@milford/core";
-import { registerProviders } from "@milford/providers";
+import { createChannels } from "@milfordai/channels";
+import { loadConfig } from "@milfordai/config";
+import { createEngine, defaultRegistry } from "@milfordai/core";
+import { registerProviders } from "@milfordai/providers";
 import { serve } from "@hono/node-server";
 import { createApp } from "./app.js";
 
@@ -16,7 +16,7 @@ const { config, providers, flows } = (loaded as Extract<typeof loaded, { ok: tru
 
 const registry = registerProviders(defaultRegistry());
 // The MCP SDKs are only loaded when a flow can call an MCP server.
-const egress = config.mcpServers.length ? (await import("@milford/mcp")).registerMcp(registry, config.mcpServers) : undefined;
+const egress = config.mcpServers.length ? (await import("@milfordai/mcp")).registerMcp(registry, config.mcpServers) : undefined;
 const engine = createEngine({ registry, providers, flows, ...config.run });
 if (!engine.ok) die(engine.error);
 

@@ -1,4 +1,4 @@
-import { renderDeep, type Capability, type ProviderFactory } from "@milford/core";
+import { renderDeep, type Capability, type ProviderFactory } from "@milfordai/core";
 import { z } from "zod";
 import { jsonPath } from "./jsonpath.js";
 import { decisionFrom, mapSchema } from "./mapped.js";

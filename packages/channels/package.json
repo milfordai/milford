@@ -1,5 +1,5 @@
 {
-  "name": "@milford/channels",
+  "name": "@milfordai/channels",
   "version": "0.0.1",
   "type": "module",
   "main": "dist/index.js",
@@ -13,7 +13,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@milford/core": "workspace:*",
+    "@milfordai/core": "workspace:*",
     "zod": "^4.6.5"
   },
   "description": "Milford channel adapters: Slack (Socket Mode), Telegram and signed webhooks.",

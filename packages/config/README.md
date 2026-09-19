@@ -1,4 +1,4 @@
-# @milford/config
+# @milfordai/config
 
 Loads a Milford config file (YAML with `${ENV}` interpolation), validates it and reads the referenced flow files. Ships the generated JSON Schema as `milford.config.schema.json`.
 
