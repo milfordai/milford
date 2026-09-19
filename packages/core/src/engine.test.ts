@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createEngine, defaultRegistry, TOO_MANY_RUNS } from "./index.js";
+import { createEngine, defaultRegistry, INVALID_INPUT, TOO_MANY_RUNS } from "./index.js";
 
 let release!: () => void;
 const gate = new Promise<void>((r) => (release = r));
@@ -34,5 +34,24 @@ describe("engine limits", () => {
     const start = performance.now();
     await e.run("hang", {}, { timeoutMs: 60 });
     expect(performance.now() - start).toBeGreaterThanOrEqual(50);
+  });
+});
+
+describe("input validation", () => {
+  const schema = { type: "object", properties: { name: { type: "string" } }, required: ["name"] };
+  const withInput = (input: Record<string, unknown>) => createEngine({ registry, flows: [{ id: "f", input, nodes: [{ id: "a", type: "slow" }], edges: [] }] });
+
+  it("rejects input that does not match the declared schema, and runs valid input", async () => {
+    release();
+    const e = withInput(schema);
+    if (!e.ok) throw new Error(e.error);
+    const bad = await e.value.run("f", {});
+    expect(!bad.ok && bad.error.startsWith(INVALID_INPUT)).toBe(true);
+    expect((await e.value.run("f", { name: 1 })).ok).toBe(false);
+    expect((await e.value.run("f", { name: "Ann" })).ok).toBe(true);
+  });
+
+  it("fails at startup on a schema that cannot be compiled", () => {
+    expect(withInput({ type: "nope" }).ok).toBe(false);
   });
 });

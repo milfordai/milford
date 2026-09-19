@@ -102,7 +102,7 @@ paths:
                 type: string
                 description: Server-sent events. See the operation description.
         "400":
-          description: The body is not JSON, or `input` is not an object.
+          description: The body is not JSON, `input` is not an object, or `input` does not match the flow's declared input schema.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
