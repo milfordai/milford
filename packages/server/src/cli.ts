@@ -5,11 +5,14 @@ import { createEngine, defaultRegistry } from "@milfordai/core";
 import { registerProviders } from "@milfordai/providers";
 import { serve } from "@hono/node-server";
 import { createApp } from "./app.js";
+import { buildOpenApi } from "./openapi.js";
 
 
 // `milford-server validate [config]` checks the config and every flow, then exits without listening.
-const validateOnly = process.argv[2] === "validate";
-const path = process.argv[validateOnly ? 3 : 2] ?? process.env.MILFORD_CONFIG ?? "milford.config.yaml";
+// `milford-server openapi [config]` prints the OpenAPI spec of the loaded flows.
+const command = ["validate", "openapi"].find((c) => c === process.argv[2]);
+const validateOnly = command === "validate";
+const path = process.argv[command ? 3 : 2] ?? process.env.MILFORD_CONFIG ?? "milford.config.yaml";
 const die = (msg: string): never => (console.error(`milford: ${msg}`), process.exit(1));
 
 const loaded = loadConfig(path);
@@ -27,6 +30,11 @@ const channels = createChannels(config.channels, { engine: eng, log: console.log
 if (!channels.ok) die(channels.error);
 const chs = (channels as Extract<typeof channels, { ok: true }>).value;
 
+if (command === "openapi") {
+  process.stdout.write(JSON.stringify(buildOpenApi(eng.flows()), null, 2) + "\n");
+  await egress?.close();
+  process.exit(0);
+}
 if (validateOnly) {
   console.log(`milford: ${path} is valid (${flows.length} flow(s), ${chs.length} channel(s))`);
   await egress?.close();

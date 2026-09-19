@@ -1,10 +1,11 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import type { Channel } from "@milfordai/channels";
 import { INVALID_INPUT, TOO_MANY_RUNS, type Engine, type RunResult } from "@milfordai/core";
-import { Hono } from "hono";
+import { Hono, type MiddlewareHandler } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { streamSSE } from "hono/streaming";
 import { createIdempotencyStore } from "./idempotency.js";
+import { buildOpenApi } from "./openapi.js";
 
 const digest = (s: string) => createHash("sha256").update(s).digest();
 
@@ -37,13 +38,17 @@ export function createApp({ engine, tokens = [], maxBodyBytes = 1_000_000, idemp
   app.use("/v1/*", bodyLimit({ maxSize: maxBodyBytes, onError: (c) => c.json({ error: "body too large" }, 413) }));
   app.get("/health", (c) => c.json({ status: "ok" }));
 
-  app.use("/v1/*", async (c, next) => {
+  const auth: MiddlewareHandler = async (c, next) => {
     if (!tokens.length) return next();
     const given = digest(c.req.header("authorization")?.replace(/^Bearer /i, "") ?? "");
     // Compare against every token, without short-circuiting on the first match.
     const ok = tokens.map((t) => timingSafeEqual(given, digest(t))).some(Boolean);
     return ok ? next() : c.json({ error: "unauthorized" }, 401);
-  });
+  };
+  app.use("/v1/*", auth);
+
+  // The spec lists every loaded flow with its input schema, so it needs the same token as the API.
+  app.get("/openapi.json", auth, (c) => c.json(buildOpenApi(engine.flows())));
 
   app.get("/v1/flows", (c) => c.json({ flows: engine.flows() }));
 

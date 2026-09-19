@@ -26,6 +26,21 @@ paths:
                 required: [status]
                 properties:
                   status: { type: string, const: ok }
+  /openapi.json:
+    get:
+      operationId: getOpenApi
+      summary: Get the OpenAPI spec of the loaded flows
+      description: |
+        This document with one typed `run<FlowId>` operation for each loaded flow, built from the flows the
+        server loaded. `POST /v1/flows/{id}/run` is replaced by these operations. Generate clients from it.
+        It needs the bearer token when tokens are configured, because it lists flow names and input schemas.
+      responses:
+        "200":
+          description: An OpenAPI 3.1 document.
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+        "401": { $ref: "#/components/responses/Unauthorized" }
   /v1/flows:
     get:
       operationId: listFlows

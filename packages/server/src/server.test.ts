@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import { parse } from "yaml";
 import { describe, expect, it } from "vitest";
 import { createApp } from "./app.js";
+import { buildOpenApi } from "./openapi.js";
 import { parseConfig } from "@milfordai/config";
 
 const yaml = `
@@ -180,9 +181,9 @@ describe("openapi spec", () => {
     if (!engine.ok) throw new Error(engine.error);
     const served = createApp({ engine: engine.value, log: () => {} }).routes
       .filter((r) => r.method !== "ALL" && !r.path.includes("*"))
-      .map((r) => `${r.method} ${r.path.replace(/:(\w+)/g, "{$1}")}`)
-      .sort();
-    expect(documented).toEqual(served);
+      .map((r) => `${r.method} ${r.path.replace(/:(\w+)/g, "{$1}")}`);
+    // A route with route-level middleware is listed once per handler.
+    expect(documented).toEqual([...new Set(served)].sort());
   });
 });
 
@@ -198,5 +199,37 @@ describe("input schema", () => {
     expect(res.status).toBe(400);
     expect(((await res.json()) as { error: string }).error).toContain("name");
     expect((await post({ name: "Ann" })).status).toBe(200);
+  });
+});
+
+describe("per-flow openapi", () => {
+  const flows = [
+    { id: "classify-error", description: "Classify an error.", input: { type: "object", properties: { message: { type: "string" } }, required: ["message"] }, nodes: [{ id: "out", type: "output" }], edges: [] },
+    { id: "plain", nodes: [{ id: "out", type: "output" }], edges: [] },
+  ];
+  const engine = createEngine({ registry: defaultRegistry(), flows });
+  if (!engine.ok) throw new Error(engine.error);
+  const app = createApp({ engine: engine.value, tokens: ["t"], log: () => {} });
+  const get = async () => (await (await app.request("/openapi.json", { headers: { authorization: "Bearer t" } })).json()) as any;
+
+  it("needs the bearer token", async () => {
+    expect((await app.request("/openapi.json")).status).toBe(401);
+  });
+
+  it("has one typed operation for every served flow", async () => {
+    const spec = await get();
+    expect(spec.openapi).toBe("3.1.0");
+    expect(spec.paths["/v1/flows/{id}/run"]).toBeUndefined();
+    const ops = engine.value.flows().map((f) => spec.paths[`/v1/flows/${f.id}/run`]?.post);
+    expect(ops.every(Boolean)).toBe(true); // fails when a served flow is missing
+    expect(ops.map((o) => o.operationId)).toEqual(["runClassifyError", "runPlain"]);
+    expect(ops[0].summary).toBe("Classify an error.");
+    expect(spec.components.schemas.ClassifyErrorInput.required).toEqual(["message"]);
+    expect(ops[0].requestBody.required).toBe(true);
+    expect(ops[1].requestBody.required).toBe(false);
+  });
+
+  it("rejects flow ids that would share an operation name", () => {
+    expect(() => buildOpenApi([{ id: "a-b", nodes: 1 }, { id: "a_b", nodes: 1 }])).toThrow(/same operation name/);
   });
 });
