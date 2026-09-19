@@ -65,5 +65,18 @@
   "logo": {
     "light": "/images/loage-02.png",
     "dark": "/images/loage-02.png"
+  },
+  "contextual": {
+    "options": [
+      "copy",
+      "view",
+      "chatgpt",
+      "claude",
+      "perplexity",
+      "mcp",
+      "cursor",
+      "vscode",
+      "download-spec"
+    ]
   }
 }
