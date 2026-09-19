@@ -1,8 +1,0 @@
-# yaml-language-server: $schema=../../packages/config/milford.config.schema.json
-providers:
-  - { id: main-llm, type: anthropic, apiKey: "${ANTHROPIC_API_KEY}", model: claude-sonnet-5 }
-flows:
-  - { file: ./hello.json }
-  - { file: ./summarize.json }
-  - { file: ./triage.json }
-server: { port: 8080, auth: { tokens: ["${MILFORD_TOKEN}"] } }

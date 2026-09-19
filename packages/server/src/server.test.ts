@@ -174,7 +174,7 @@ describe("idempotency", () => {
 
 describe("openapi spec", () => {
   it("documents exactly the routes the app serves", () => {
-    const spec = parse(readFileSync(new URL("../../../docs/openapi.yaml", import.meta.url), "utf8")) as { paths: Record<string, Record<string, unknown>> };
+    const spec = parse(readFileSync(new URL("../openapi.yaml", import.meta.url), "utf8")) as { paths: Record<string, Record<string, unknown>> };
     const documented = Object.entries(spec.paths).flatMap(([path, ops]) => Object.keys(ops).map((m) => `${m.toUpperCase()} ${path}`)).sort();
     const engine = createEngine({ registry: defaultRegistry() });
     if (!engine.ok) throw new Error(engine.error);

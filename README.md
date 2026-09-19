@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/images/loage-02.png" alt="Milford logo" width="88" />
+  <img src=".github/assets/logo.png" alt="Milford logo" width="88" />
 </p>
 
 # Milford
@@ -69,7 +69,7 @@ Then use it in a flow. Edges with `when` route on the answer, and a low-confiden
 { "from": "team", "to": "billing-reply", "when": { "path": "data.choice", "op": "eq", "value": "billing" } }
 ```
 
-The complete flow is [`examples/flows/triage.json`](examples/flows/triage.json). Switching the provider to an OpenAI-compatible server or a local classifier is a config change, and the flow stays the same.
+The complete flow is [`flows/triage.json`](https://github.com/milfordai/examples/blob/main/flows/triage.json) in the examples repository. Switching the provider to an OpenAI-compatible server or a local classifier is a config change, and the flow stays the same.
 
 **That's it!** Your flow runs behind an authenticated API with streaming, idempotent retries and run limits.
 
@@ -111,7 +111,7 @@ flowchart LR
   human --> out
 ```
 
-Every run returns a trace. This is the `category` decision of the [error-classification example](examples/error-classification), with a stand-in provider:
+Every run returns a trace. This is the `category` decision of the [error-classification example](https://github.com/milfordai/examples/tree/main/error-classification), with a stand-in provider:
 
 ```json
 {
@@ -155,7 +155,7 @@ The answer, the options that were offered, the confidence and the provider are a
 
 ### Interfaces
 
-- **[HTTP API](https://loage.mintlify.site/reference/http-api)** - Run flows with server-sent events, `Idempotency-Key` retries, bearer auth and an [OpenAPI 3.1 spec](docs/openapi.yaml).
+- **[HTTP API](https://loage.mintlify.site/reference/http-api)** - Run flows with server-sent events, `Idempotency-Key` retries, bearer auth and an [OpenAPI 3.1 spec](packages/server/openapi.yaml).
 - **[MCP server](https://loage.mintlify.site/guides/mcp)** - Expose chosen flows as tools to external LLMs over stdio or Streamable HTTP. Nothing is exposed by default.
 - **[MCP client](https://loage.mintlify.site/guides/mcp)** - The `mcp` node calls tools on other MCP servers, and a decision can choose the tool from an allow list.
 - **[Channels](https://loage.mintlify.site/guides/channels)** - Slack (Socket Mode), Telegram and signed webhooks. Access is deny by default.
@@ -204,7 +204,7 @@ LLM-backed decisions report the model's own confidence estimate, not a calibrate
 node packages/server/dist/cli.js milford.config.yaml
 ```
 
-An [OpenAPI 3.1 spec](docs/openapi.yaml) describes the API, so you can generate a client for Java, .NET, Python or Go.
+An [OpenAPI 3.1 spec](packages/server/openapi.yaml) describes the API, so you can generate a client for Java, .NET, Python or Go.
 
 ### 2. MCP server
 
@@ -319,8 +319,7 @@ Milford/
 │   ├── server/          # HTTP server (Hono): API, SSE, idempotency, webhooks
 │   ├── channels/        # Slack, Telegram and webhook adapters
 │   └── mcp/             # MCP server and the mcp node
-├── examples/            # quickstart, flows, home automation, error classification
-├── docs/                # Documentation (Mintlify) and the OpenAPI spec
+├── examples/quickstart/ # The config from the Quick Start
 ├── Dockerfile           # Targets: server (default) and mcp
 └── docker-compose.yml
 ```
@@ -329,12 +328,14 @@ Milford/
 
 ## Examples
 
+[`examples/quickstart`](examples/quickstart) is in this repository. The others are in [milfordai/examples](https://github.com/milfordai/examples).
+
 | Example | What it shows |
 | --- | --- |
-| [`examples/quickstart`](examples/quickstart) | The config from the Quick Start. Runs without an API key. |
-| [`examples/flows`](examples/flows) | One flow per idea: templates, a summarizing model call, decision routing and a webhook call. |
-| [`examples/home-automation`](examples/home-automation) | A free-text command turned into device actions by a fan-out of small decisions, with a fake device server so it runs without hardware. [Guide](https://loage.mintlify.site/guides/home-automation). |
-| [`examples/error-classification`](examples/error-classification) | Classify application errors as defect, infrastructure incident or user exception, and detect repeats of earlier ones. |
+| [`examples/quickstart`](examples/quickstart) | The config from the Quick Start. Runs without an API key. Lives in this repository. |
+| [`flows`](https://github.com/milfordai/examples/tree/main/flows) | One flow per idea: templates, a summarizing model call, decision routing and a webhook call. |
+| [`home-automation`](https://github.com/milfordai/examples/tree/main/home-automation) | A free-text command turned into device actions by a fan-out of small decisions, with a fake device server so it runs without hardware. [Guide](https://loage.mintlify.site/guides/home-automation). |
+| [`error-classification`](https://github.com/milfordai/examples/tree/main/error-classification) | Classify application errors as defect, infrastructure incident or user exception, and detect repeats of earlier ones. |
 
 ---
 
@@ -347,7 +348,7 @@ The full documentation is at **[loage.mintlify.site](https://loage.mintlify.site
 | [Introduction](https://loage.mintlify.site) | [Flows](https://loage.mintlify.site/concepts/flows) | [MCP](https://loage.mintlify.site/guides/mcp) | [Configuration](https://loage.mintlify.site/reference/config) |
 | [Quickstart](https://loage.mintlify.site/quickstart) | [Decisions](https://loage.mintlify.site/concepts/decisions) | [Channels](https://loage.mintlify.site/guides/channels) | [HTTP API](https://loage.mintlify.site/reference/http-api) |
 | [Built-in nodes](https://loage.mintlify.site/nodes/reference) | [Providers](https://loage.mintlify.site/providers/overview) | [Enterprise integration](https://loage.mintlify.site/guides/enterprise-integration) | [Deployment](https://loage.mintlify.site/reference/deployment) |
-| | | [Home automation](https://loage.mintlify.site/guides/home-automation) | [OpenAPI spec](docs/openapi.yaml) |
+| | | [Home automation](https://loage.mintlify.site/guides/home-automation) | [OpenAPI spec](packages/server/openapi.yaml) |
 
 ---
 
@@ -371,7 +372,7 @@ pnpm typecheck
 pnpm test
 ```
 
-Work happens on `feature/<name>` branches from `dev`, merged back with a pull request, and releases are tagged from `main`. Docs live in `docs/` (`cd docs && mint dev`, which needs Node 22 or another LTS version) and ship in the same branch as the code they describe. See [AGENTS.md](AGENTS.md) for the architecture rules and the git flow.
+Work happens on `feature/<name>` branches from `dev`, merged back with a pull request, and releases are tagged from `main`. The documentation is in the [docs repository](https://github.com/milfordai/docs). A change that users can see (a node, a provider, a config key, an endpoint or a CLI flag) needs a linked pull request there. See [AGENTS.md](AGENTS.md) for the architecture rules and the git flow.
 
 ## License
 

@@ -8,7 +8,8 @@
     "milford-server": "dist/cli.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "openapi.yaml"
   ],
   "scripts": {
     "build": "rm -rf dist && tsc -p tsconfig.build.json",

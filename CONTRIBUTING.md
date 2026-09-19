@@ -25,7 +25,9 @@ A pre-commit hook runs the typecheck and the tests.
 
 ## Documentation
 
-The documentation is in `docs/` (Mintlify). A change that users can see (a node, a provider, a config key, an endpoint or a CLI flag) updates the docs in the same branch. Run `mint validate` and `mint broken-links` from `docs/` under Node 22.
+The documentation is in a separate repository (`milfordai/docs`, Mintlify). A change that users can see (a node, a provider, a config key, an endpoint or a CLI flag) needs a matching pull request there. Link the two pull requests. `packages/server/openapi.yaml` stays here as the source of truth for the HTTP API: update it in the same pull request as the route, and the docs repository gets a copy at release time.
+
+Runnable examples are in `milfordai/examples`, except `examples/quickstart`, which the README and the Docker instructions use.
 
 ## Reporting bugs
 

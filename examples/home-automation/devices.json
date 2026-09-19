@@ -1,4 +1,0 @@
-{
-  "rooms": ["kitchen", "living-room", "garage", "whole-house"],
-  "devices": ["kitchen-lamp", "living-room-fan", "front-door-lock", "coffee-machine", "living-room-speaker", "hallway-thermostat"]
-}
