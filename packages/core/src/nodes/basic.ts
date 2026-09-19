@@ -36,8 +36,6 @@ const httpConfig = z.object({
   method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]).default("GET"),
   headers: z.record(z.string(), z.string()).default({}),
   body: z.unknown().optional(),
-  /** "controller" is reserved for mesh setups; v1 always executes locally. */
-  egress: z.enum(["local", "controller"]).default("local"),
 });
 
 export const httpNode: NodeDef<z.infer<typeof httpConfig>> = {

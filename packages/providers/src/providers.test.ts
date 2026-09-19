@@ -1,7 +1,6 @@
 import { createEngine, defaultRegistry, flow, type DecideRequest } from "@loage/core";
 import { describe, expect, it } from "vitest";
 import { registerProviders } from "./index.js";
-import { signV4 } from "./sigv4.js";
 
 type Call = { url: string; headers: Record<string, string>; body: any };
 /** Fake fetch that records calls and answers with `reply(call)`. */
@@ -21,13 +20,6 @@ const build = (providers: Record<string, unknown>[], fetch: typeof globalThis.fe
   return e.value;
 };
 const choiceFlow = () => flow("f").node("d", "decision", { provider: "p", kind: "choice", prompt: "Which room?", options: ["kitchen", "garage"], state: "{{input.text}}" }).node("out", "output").edge("d", "out");
-
-describe("sigv4", () => {
-  it("matches an independent (python hmac) computation", () => {
-    const h = signV4({ method: "GET", url: "https://example.amazonaws.com/", region: "us-east-1", service: "service", creds: { accessKeyId: "AKIDEXAMPLE", secretAccessKey: "wJalrXUtnFEihuIcs/K7MDENG+bPxRfiCYEXAMPLEKEY" }, date: new Date("2015-08-30T12:36:00Z") });
-    expect(h.authorization).toBe("AWS4-HMAC-SHA256 Credential=AKIDEXAMPLE/20150830/us-east-1/service/aws4_request, SignedHeaders=host;x-amz-date, Signature=f87481da06457a5938ee2c5faf7ee1ed5337700f26fe5f182266aeb03f502858");
-  });
-});
 
 describe("openai", () => {
   it("chat hits /chat/completions with bearer auth", async () => {
@@ -102,15 +94,8 @@ describe("provider swap", () => {
     expect(data).toMatchObject({ choice: "garage", confidence: 0.7 });
   });
 
-  it("sagemaker signs the request and reuses the mapping", async () => {
-    const { data, calls } = await run({ type: "sagemaker", endpoint: "intent", region: "eu-west-1", accessKeyId: "AK", secretAccessKey: "SK", request: { text: "{{state}}" }, map }, () => ({ predictions: [{ label: "kitchen", scores: [0.9, 0.05, 0.05] }] }));
-    expect(calls[0]!.url).toBe("https://runtime.sagemaker.eu-west-1.amazonaws.com/endpoints/intent/invocations");
-    expect(calls[0]!.headers.authorization).toMatch(/^AWS4-HMAC-SHA256 Credential=AK\/\d{8}\/eu-west-1\/sagemaker\/aws4_request/);
-    expect(data).toMatchObject({ choice: "kitchen" });
-  });
-
   it("rejects an invalid provider config at load time", () => {
-    const e = createEngine({ registry: registerProviders(defaultRegistry()), providers: [{ id: "p", type: "sagemaker" }] });
+    const e = createEngine({ registry: registerProviders(defaultRegistry()), providers: [{ id: "p", type: "anthropic" }] });
     expect(e.ok).toBe(false);
   });
 });

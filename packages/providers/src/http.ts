@@ -1,7 +1,7 @@
-import type { Capability, ProviderFactory } from "@loage/core";
+import { renderDeep, type Capability, type ProviderFactory } from "@loage/core";
 import { z } from "zod";
 import { jsonPath } from "./jsonpath.js";
-import { decisionFrom, fillRequest, mapSchema } from "./mapped.js";
+import { decisionFrom, mapSchema } from "./mapped.js";
 import { err, postJson } from "./util.js";
 
 const config = z.object({
@@ -25,13 +25,13 @@ export const http: ProviderFactory = (raw, { fetch }) => {
       type: "http",
       capabilities: c.capabilities as Capability[],
       async decide(req) {
-        const body = fillRequest(c.request, req);
+        const body = renderDeep(c.request, req);
         if (!body.ok) return body;
         const r = await postJson(fetch, c.url, c.headers, body.value, req.signal);
         return r.ok ? decisionFrom(req, r.value, c.map) : r;
       },
       async chat(req) {
-        const body = fillRequest(c.request, req);
+        const body = renderDeep(c.request, req);
         if (!body.ok) return body;
         const r = await postJson(fetch, c.url, c.headers, body.value, req.signal);
         if (!r.ok) return r;

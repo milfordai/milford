@@ -6,7 +6,6 @@ import type { Cache, Condition, Node, NodeResult, NodeState, Provider, RunEvent,
 export type RunDeps = { registry: Registry; providers?: Map<string, Provider>; fetch?: typeof fetch; cache?: Cache };
 export type RunOptions = {
   input?: Record<string, unknown>;
-  concurrency?: number;
   timeoutMs?: number;
   signal?: AbortSignal;
   onEvent?: (e: RunEvent) => void;
@@ -96,12 +95,7 @@ export async function runFlow(compiled: CompiledFlow, deps: RunDeps, opts: RunOp
     }
   };
 
-  const limit = Math.max(1, opts.concurrency ?? Infinity);
-  for (const level of compiled.levels) {
-    const queue = [...level];
-    const worker = async () => { for (let n = queue.shift(); n; n = queue.shift()) await exec(n); };
-    await Promise.all(Array.from({ length: Math.min(limit, level.length) }, worker));
-  }
+  for (const level of compiled.levels) await Promise.all(level.map(exec));
 
   const outNode = [...compiled.flow.nodes].reverse().find((n) => n.type === "output" && nodes[n.id]?.status === "done");
   return {

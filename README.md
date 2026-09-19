@@ -3,7 +3,7 @@
 A headless workflow engine for typed decisions, model calls and HTTP calls, wired in a graph. A TypeScript core library plus a thin HTTP server, configured as code and deployed with Docker. It is not an agent framework: no agent loops.
 
 - `@loage/core`: flows, executor, nodes, provider port. No I/O, no vendor knowledge.
-- `@loage/providers`: OpenAI (and compatible), Anthropic, Jev, generic HTTP, SageMaker.
+- `@loage/providers`: OpenAI (and compatible), Anthropic, Jev, generic HTTP.
 - `@loage/server`: Hono server with bearer auth and SSE.
 
 ```bash
