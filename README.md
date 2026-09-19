@@ -1,12 +1,21 @@
+<p align="center">
+  <img src="docs/images/loage-02.png" alt="Loage logo" width="88" />
+</p>
+
 # Loage
 
 [![CI](https://github.com/iwandejong/loage.ai/actions/workflows/ci.yml/badge.svg)](https://github.com/iwandejong/loage.ai/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/iwandejong/loage.ai)](https://github.com/iwandejong/loage.ai/releases)
+[![Docs](https://img.shields.io/badge/docs-loage.mintlify.site-16A34A)](https://loage.mintlify.site)
 [![License](https://img.shields.io/github/license/iwandejong/loage.ai)](LICENSE)
 
 ## Intelligent workflows as code: typed decisions, model calls and HTTP calls in a graph
 
-Loage is a headless workflow engine. You describe a flow as plain JSON: small steps such as a typed decision, a model call, a template or an HTTP call, wired in a graph. Loage runs it behind an HTTP API, an MCP server or as a TypeScript library. It is not an agent framework: there are no agent loops, so a flow is a fixed graph that you can read, version in git and test.
+Loage is a headless workflow engine. You describe a flow as plain JSON: small steps such as a typed decision, a model call, a template or an HTTP call, wired in a graph. Loage runs it behind an HTTP API, an MCP server, chat channels or as a TypeScript library.
+
+It is not an agent framework. A flow is a fixed graph with no agent loop, so you can read it, version it in git and test it. Models answer narrow, typed questions, and your graph decides what happens next.
+
+[**Documentation**](https://loage.mintlify.site) · [Quick Start](#quick-start) · [How it works](#how-it-works) · [Examples](#examples) · [Releases](https://github.com/iwandejong/loage.ai/releases)
 
 ## Quick Start
 
@@ -64,10 +73,66 @@ The complete flow is [`examples/flows/triage.json`](examples/flows/triage.json).
 
 **That's it!** Your flow runs behind an authenticated API with streaming, idempotent retries and run limits.
 
-**Complete guides:**
+---
 
-- [Quickstart](docs/quickstart.mdx) - HTTP server and library use
-- [Flows](docs/concepts/flows.mdx) and [Decisions](docs/concepts/decisions.mdx) - the model behind it
+## How it works
+
+Every way of starting a run goes through the same engine. Flows are compiled once at startup, then each run walks the precomputed levels.
+
+```mermaid
+flowchart LR
+  subgraph Ingress
+    A["HTTP API<br/>SSE, idempotency"]
+    B["MCP server<br/>flows as tools"]
+    C["Slack, Telegram,<br/>signed webhooks"]
+    D["TypeScript<br/>library"]
+  end
+  A --> E
+  B --> E
+  C --> E
+  D --> E
+  E["Engine<br/>compile once, run many"] --> F["Providers<br/>OpenAI-compatible, Anthropic,<br/>Jev, HTTP classifier"]
+  E --> G["http node<br/>any REST API"]
+  E --> H["mcp node<br/>other MCP servers"]
+```
+
+A flow is a graph. Nodes in the same level run in parallel, `when` conditions on edges skip untaken branches, and a failed branch does not stop the others. This is the triage flow from the Quick Start:
+
+```mermaid
+flowchart LR
+  in(["input"]) --> team{{"team<br/>choice + confidence"}}
+  team -- billing --> billing["billing reply"]
+  team -- technical --> technical["technical reply"]
+  team -- sales --> sales["sales reply"]
+  team -- none_of_these --> human["route to a human"]
+  billing --> out(["output"])
+  technical --> out
+  sales --> out
+  human --> out
+```
+
+Every run returns a trace. This is the `category` decision of the [error-classification example](examples/error-classification), with a stand-in provider:
+
+```json
+{
+  "status": "done",
+  "result": {
+    "success": true,
+    "output": "infra-incident",
+    "data": {
+      "kind": "choice",
+      "question": "What kind of error is this?",
+      "options": ["application-defect", "infra-incident", "user-exception", "none_of_these"],
+      "choice": "infra-incident",
+      "confidence": 0.93,
+      "gated": false,
+      "provider": "classifier"
+    }
+  }
+}
+```
+
+The answer, the options that were offered, the confidence and the provider are all in the result, so a UI or an audit log can show why a branch was taken.
 
 ---
 
@@ -75,44 +140,171 @@ The complete flow is [`examples/flows/triage.json`](examples/flows/triage.json).
 
 ### Flows
 
-- **[Plain JSON graphs](docs/concepts/flows.mdx)** - No UI types in the model. Write JSON by hand or build it with the TypeScript `flow()` builder.
-- **[Parallel execution](docs/concepts/flows.mdx)** - Nodes in a level run concurrently. Failed branches are isolated and reported in the result.
-- **[Branching](docs/concepts/flows.mdx)** - Route on any field of a node result, with `join: "all"` when a node needs every input.
-- **[Retries, timeouts and caching](docs/concepts/flows.mdx)** - Per node, with abort signals that reach every network call.
-- **[Built-in nodes](docs/nodes/reference.mdx)** - `input`, `prompt`, `llm`, `decision`, `http`, `mcp` and `output`. Add your own with one `registerNode` call.
+- **[Plain JSON graphs](https://loage.mintlify.site/concepts/flows)** - No UI types in the model. Write JSON by hand or build it with the TypeScript `flow()` builder.
+- **[Parallel execution](https://loage.mintlify.site/concepts/flows)** - Nodes in a level run concurrently. Failed branches are isolated and reported in the result.
+- **[Branching](https://loage.mintlify.site/concepts/flows)** - Route on any field of a node result, with `join: "all"` when a node needs every input.
+- **[Retries, timeouts and caching](https://loage.mintlify.site/concepts/flows)** - Per node, with abort signals that reach every network call.
+- **[Templates](https://loage.mintlify.site/concepts/flows)** - `{{input.field}}` and `{{node.data.field}}` placeholders. An unknown variable fails the node instead of rendering an empty string.
 
 ### Decisions and models
 
-- **[Typed decisions](docs/concepts/decisions.mdx)** - `choice`, `score` and `noul` answers instead of parsed free text, with confidence gating and a `none_of_these` option.
-- **[Providers](docs/providers/overview.mdx)** - OpenAI and any OpenAI-compatible server, Anthropic, Jev, and a generic HTTP endpoint for your own classifier.
-- **[Fallback, circuit breaker and rate limit](docs/providers/overview.mdx)** - Prefer a local provider and fall back to a cloud one, or the reverse.
-- **[Fan-out](docs/concepts/decisions.mdx)** - Decisions in the same level run together, and providers that support batching receive them as one request.
+- **[Typed decisions](https://loage.mintlify.site/concepts/decisions)** - `choice`, `score` and `noul` answers instead of parsed free text, with confidence gating and a `none_of_these` option.
+- **[Providers](https://loage.mintlify.site/providers/overview)** - OpenAI and any OpenAI-compatible server, Anthropic, Jev, and a generic HTTP endpoint for your own classifier.
+- **[Fallback, circuit breaker and rate limit](https://loage.mintlify.site/providers/overview)** - Prefer a local provider and fall back to a cloud one, or the reverse.
+- **[Fan-out](https://loage.mintlify.site/concepts/decisions)** - Decisions in the same level run together, and providers that support batching receive them as one request.
 
 ### Interfaces
 
-- **[HTTP API](docs/reference/http-api.mdx)** - Run flows with server-sent events, `Idempotency-Key` retries, bearer auth and an [OpenAPI 3.1 spec](docs/openapi.yaml).
-- **[MCP server](docs/guides/mcp.mdx)** - Expose chosen flows as tools to external LLMs over stdio or Streamable HTTP. Nothing is exposed by default.
-- **[MCP client](docs/guides/mcp.mdx)** - The `mcp` node calls tools on other MCP servers, and a decision can choose the tool from an allow list.
-- **[Channels](docs/guides/channels.mdx)** - Slack (Socket Mode), Telegram and signed webhooks. Access is deny by default.
+- **[HTTP API](https://loage.mintlify.site/reference/http-api)** - Run flows with server-sent events, `Idempotency-Key` retries, bearer auth and an [OpenAPI 3.1 spec](docs/openapi.yaml).
+- **[MCP server](https://loage.mintlify.site/guides/mcp)** - Expose chosen flows as tools to external LLMs over stdio or Streamable HTTP. Nothing is exposed by default.
+- **[MCP client](https://loage.mintlify.site/guides/mcp)** - The `mcp` node calls tools on other MCP servers, and a decision can choose the tool from an allow list.
+- **[Channels](https://loage.mintlify.site/guides/channels)** - Slack (Socket Mode), Telegram and signed webhooks. Access is deny by default.
 
 ### Deploy and operate
 
-- **[Config as code](docs/reference/config.mdx)** - One YAML file with `${ENV}` interpolation and a generated JSON Schema for editor completion.
-- **[Docker](docs/reference/deployment.mdx)** - Images for `linux/amd64` and `linux/arm64`, one for the HTTP server and one for the MCP server. No database.
-- **[Run limits](docs/reference/config.mdx)** - A shared timeout and concurrency cap, JSON logs and a graceful shutdown.
+- **[Config as code](https://loage.mintlify.site/reference/config)** - One YAML file with `${ENV}` interpolation and a generated JSON Schema for editor completion.
+- **[Docker](https://loage.mintlify.site/reference/deployment)** - Images for `linux/amd64` and `linux/arm64`, one for the HTTP server and one for the MCP server. No database.
+- **[Run limits](https://loage.mintlify.site/reference/config)** - A shared timeout and concurrency cap, JSON logs and a graceful shutdown.
 - **[Vendor neutral](AGENTS.md)** - The core has no I/O and no vendor code. CI fails if `typesafe` or `jev` appears in it.
 
 ---
 
-## Ways to Run It
+## Built-in Nodes and Providers
 
-| | Use it for | Start |
+| Node | What it does |
+| --- | --- |
+| `input` | Exposes the run input. |
+| `prompt` | Renders a template from the input and upstream results. |
+| `llm` | One chat call through a provider. No loop, no tools. Presets: summarize, classify, extract, rewrite, translate. |
+| `decision` | A typed `choice`, `score` or `noul` answer, with `minConfidence` gating and dynamic options. |
+| `http` | A templated HTTP call. A non-2xx response fails the node. |
+| `mcp` | One tool call on another MCP server. |
+| `output` | Marks the flow result. |
+
+Add your own node with one `registerNode` call: [built-in nodes reference](https://loage.mintlify.site/nodes/reference).
+
+| Provider | Capabilities | Notes |
 | --- | --- | --- |
-| **HTTP server** | Any language or framework calling flows over REST | `node packages/server/dist/cli.js loage.config.yaml` |
-| **MCP server** | LLM clients such as Claude Desktop or Claude Code | `node packages/mcp/dist/cli.js loage.config.yaml` |
-| **Library** | Embedding the engine in a TypeScript app | `createEngine({ registry, providers, flows })` from `@loage/core` |
+| `openai` | chat, decide | Any OpenAI-compatible server through `baseUrl`, such as Groq or a local server. |
+| `anthropic` | chat, decide | Decisions use forced tool use with a JSON schema. |
+| `typesafe` | decide | Jev. Probabilities and confidence, with batching. |
+| `http` | decide, chat | Your own classifier endpoint, with a request template and JSONPath mapping. |
 
-The HTTP and MCP servers are separate programs that read the same config file and can run side by side. For a queue-driven service such as a Spring app on IBM MQ, keep the queue in that service and call Loage over HTTP: see [enterprise integration](docs/guides/enterprise-integration.mdx).
+LLM-backed decisions report the model's own confidence estimate, not a calibrated probability. See [providers](https://loage.mintlify.site/providers/overview).
+
+---
+
+## Getting Started Options
+
+### 1. HTTP server
+
+**Best for:** any language or framework calling flows over REST.
+
+```bash
+node packages/server/dist/cli.js loage.config.yaml
+```
+
+An [OpenAPI 3.1 spec](docs/openapi.yaml) describes the API, so you can generate a client for Java, .NET, Python or Go.
+
+### 2. MCP server
+
+**Best for:** LLM clients such as Claude Desktop, Claude Code or your own agents that should call your flows as tools.
+
+```yaml
+mcp:
+  expose: [triage]            # nothing is exposed unless listed
+  transport: http
+  auth: { tokens: ["${LOAGE_MCP_TOKEN}"] }
+```
+
+```bash
+node packages/mcp/dist/cli.js loage.config.yaml
+claude mcp add --transport http loage http://localhost:8090/mcp \
+  --header "Authorization: Bearer $LOAGE_MCP_TOKEN"
+```
+
+Give a flow a `description` and an `input` JSON Schema, and clients see them as the tool description and arguments. See the [MCP guide](https://loage.mintlify.site/guides/mcp).
+
+### 3. TypeScript library
+
+**Best for:** embedding the engine in a TypeScript app.
+
+```ts
+import { createEngine, defaultRegistry, flow } from "@loage/core";
+import { registerProviders } from "@loage/providers";
+
+const engine = createEngine({
+  registry: registerProviders(defaultRegistry()),
+  providers: [{ id: "main", type: "anthropic", apiKey: process.env.ANTHROPIC_API_KEY!, model: "claude-sonnet-5" }],
+  flows: [
+    flow("summarize")
+      .node("sum", "llm", { provider: "main", preset: "summarize", prompt: "{{input.text}}" })
+      .node("out", "output")
+      .edge("sum", "out")
+      .build(),
+  ],
+});
+if (!engine.ok) throw new Error(engine.error);
+
+const result = await engine.value.run("summarize", { text: "..." });
+```
+
+`createEngine` and `run` return results instead of throwing. Check `ok` before you read `value`.
+
+### Queue-driven services
+
+A service that reads from a queue such as IBM MQ keeps the queue, the transactions and its own state, and calls Loage over HTTP for the decisions. Send the message id as an `Idempotency-Key` so a redelivered message does not run the flow, or pay for the model calls, twice.
+
+```text
+IBM MQ ──> Spring service ──POST /v1/flows/classify-error/run──> Loage ──> model or classifier
+              │  (JMS, transactions,                              (stateless)
+              │   history lookup, storage)
+              └──> writes the new error to its own database
+```
+
+See [enterprise integration](https://loage.mintlify.site/guides/enterprise-integration).
+
+---
+
+## Configuration
+
+One YAML file configures providers, flows, channels, MCP and limits. `${ENV}` values are filled from the environment, so the file holds no secrets.
+
+```yaml
+providers:
+  - id: main-llm
+    type: anthropic
+    apiKey: "${ANTHROPIC_API_KEY}"
+    model: claude-sonnet-5
+    fallback: [local]                               # try this provider if main-llm fails
+    circuitBreaker: { failures: 5, resetMs: 30000 } # fail fast so the fallback takes over
+    rateLimit: { perSecond: 10 }
+  - id: local
+    type: openai
+    baseUrl: http://localhost:11434/v1
+    model: llama3.2
+flows:
+  - { file: ./flows/triage.json }
+channels:
+  - id: support-slack
+    type: slack
+    flow: triage
+    appToken: "${SLACK_APP_TOKEN}"
+    botToken: "${SLACK_BOT_TOKEN}"
+    allow: ["U024BE7LH"]                            # required: channels are deny by default
+mcpServers:
+  - { id: crm, url: "https://crm.example.com/mcp", headers: { authorization: "Bearer ${CRM_TOKEN}" } }
+mcp:
+  expose: [triage]
+  transport: http
+  auth: { tokens: ["${LOAGE_MCP_TOKEN}"] }
+server:
+  port: 8080
+  auth: { tokens: ["${LOAGE_TOKEN}"] }
+run: { timeoutMs: 30000, maxConcurrentRuns: 32 }
+```
+
+The server checks everything at startup: unknown providers, providers that cannot do what a node needs, bad node config and cycles fail the boot instead of failing a request. See the [configuration reference](https://loage.mintlify.site/reference/config).
 
 ---
 
@@ -137,10 +329,25 @@ loage.ai/
 
 ## Examples
 
-- [`examples/quickstart`](examples/quickstart) - The config from the Quick Start.
-- [`examples/flows`](examples/flows) - One flow per idea: templates, a summarizing model call, decision routing and a webhook call.
-- [`examples/home-automation`](examples/home-automation) - A free-text command turned into device actions by a fan-out of small decisions, with a fake device server so it runs without hardware. See the [guide](docs/guides/home-automation.mdx).
-- [`examples/error-classification`](examples/error-classification) - Classify application errors and detect repeats of earlier ones.
+| Example | What it shows |
+| --- | --- |
+| [`examples/quickstart`](examples/quickstart) | The config from the Quick Start. Runs without an API key. |
+| [`examples/flows`](examples/flows) | One flow per idea: templates, a summarizing model call, decision routing and a webhook call. |
+| [`examples/home-automation`](examples/home-automation) | A free-text command turned into device actions by a fan-out of small decisions, with a fake device server so it runs without hardware. [Guide](https://loage.mintlify.site/guides/home-automation). |
+| [`examples/error-classification`](examples/error-classification) | Classify application errors as defect, infrastructure incident or user exception, and detect repeats of earlier ones. |
+
+---
+
+## Documentation
+
+The full documentation is at **[loage.mintlify.site](https://loage.mintlify.site)**. Every page can be copied as Markdown or opened in an AI assistant, and there is an [`llms.txt`](https://loage.mintlify.site/llms.txt).
+
+| Start here | Concepts | Guides | Reference |
+| --- | --- | --- | --- |
+| [Introduction](https://loage.mintlify.site) | [Flows](https://loage.mintlify.site/concepts/flows) | [MCP](https://loage.mintlify.site/guides/mcp) | [Configuration](https://loage.mintlify.site/reference/config) |
+| [Quickstart](https://loage.mintlify.site/quickstart) | [Decisions](https://loage.mintlify.site/concepts/decisions) | [Channels](https://loage.mintlify.site/guides/channels) | [HTTP API](https://loage.mintlify.site/reference/http-api) |
+| [Built-in nodes](https://loage.mintlify.site/nodes/reference) | [Providers](https://loage.mintlify.site/providers/overview) | [Enterprise integration](https://loage.mintlify.site/guides/enterprise-integration) | [Deployment](https://loage.mintlify.site/reference/deployment) |
+| | | [Home automation](https://loage.mintlify.site/guides/home-automation) | [OpenAPI spec](docs/openapi.yaml) |
 
 ---
 
@@ -150,7 +357,12 @@ Loage is at v0.0.1. The config format can still change. The Slack and Telegram a
 
 ---
 
-## Development
+## Need Help?
+
+- Open an [issue](https://github.com/iwandejong/loage.ai/issues) for a bug or a question.
+- Read the [documentation](https://loage.mintlify.site), or ask your AI assistant with the page menu on any docs page.
+
+## Contributing
 
 ```bash
 pnpm install
@@ -159,7 +371,7 @@ pnpm typecheck
 pnpm test
 ```
 
-Docs live in `docs/` (`cd docs && mint dev`, which needs Node 22 or another LTS version). Work happens on `feature/<name>` branches from `dev`, and releases are tagged from `main`. See [AGENTS.md](AGENTS.md) for the architecture rules and the git flow.
+Work happens on `feature/<name>` branches from `dev`, merged back with a pull request, and releases are tagged from `main`. Docs live in `docs/` (`cd docs && mint dev`, which needs Node 22 or another LTS version) and ship in the same branch as the code they describe. See [AGENTS.md](AGENTS.md) for the architecture rules and the git flow.
 
 ## License
 
