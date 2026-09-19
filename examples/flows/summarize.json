@@ -1,0 +1,9 @@
+{
+  "id": "summarize",
+  "nodes": [
+    { "id": "in", "type": "input" },
+    { "id": "sum", "type": "llm", "config": { "provider": "main-llm", "preset": "summarize", "prompt": "{{input.text}}", "maxInputChars": 20000 }, "retry": { "attempts": 2 }, "timeoutMs": 30000 },
+    { "id": "out", "type": "output" }
+  ],
+  "edges": [{ "from": "in", "to": "sum" }, { "from": "sum", "to": "out" }]
+}
