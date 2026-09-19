@@ -1,9 +1,0 @@
-{
-  "id": "hello",
-  "nodes": [
-    { "id": "in", "type": "input" },
-    { "id": "greet", "type": "prompt", "config": { "template": "Hello {{input.name}}!" } },
-    { "id": "out", "type": "output" }
-  ],
-  "edges": [{ "from": "in", "to": "greet" }, { "from": "greet", "to": "out" }]
-}
