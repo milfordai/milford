@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Milford HTTP API
-  version: 0.0.1
+  version: 0.0.3
   description: |
     Run flows, list them, and receive signed webhooks. The server is stateless and has no database.
     Generate a client for your language from this file with any OpenAPI generator.
