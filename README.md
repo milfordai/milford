@@ -5,6 +5,8 @@ A headless workflow engine for typed decisions, model calls and HTTP calls, wire
 - `@loage/core`: flows, executor, nodes, provider port. No I/O, no vendor knowledge.
 - `@loage/providers`: OpenAI (and compatible), Anthropic, Jev, generic HTTP, SageMaker.
 - `@loage/server`: Hono server with bearer auth and SSE.
+- `@loage/mcp`: MCP server that exposes flows as tools to external LLMs.
+- `@loage/config`: the config loader shared by both servers.
 
 ```bash
 pnpm install && pnpm build && pnpm test
