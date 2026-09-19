@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "providers": {
+      "default": [],
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "fallback": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "type"
+        ],
+        "additionalProperties": {}
+      }
+    },
+    "flows": {
+      "default": [],
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "server": {
+      "default": {
+        "port": 8080,
+        "auth": {
+          "tokens": []
+        }
+      },
+      "type": "object",
+      "properties": {
+        "port": {
+          "default": 8080,
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "auth": {
+          "default": {
+            "tokens": []
+          },
+          "type": "object",
+          "properties": {
+            "tokens": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "tokens"
+          ],
+          "additionalProperties": false
+        },
+        "runTimeoutMs": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      },
+      "required": [
+        "port",
+        "auth"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "providers",
+    "flows",
+    "server"
+  ],
+  "additionalProperties": false
+}
