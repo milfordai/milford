@@ -1,0 +1,21 @@
+{
+  "name": "@loage/providers",
+  "version": "0.0.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+    "./openai": { "types": "./dist/openai.d.ts", "default": "./dist/openai.js" },
+    "./anthropic": { "types": "./dist/anthropic.d.ts", "default": "./dist/anthropic.js" },
+    "./typesafe": { "types": "./dist/typesafe.d.ts", "default": "./dist/typesafe.js" },
+    "./http": { "types": "./dist/http.d.ts", "default": "./dist/http.js" },
+    "./sagemaker": { "types": "./dist/sagemaker.d.ts", "default": "./dist/sagemaker.js" }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": { "@loage/core": "workspace:*", "zod": "^4.6.5" }
+}

@@ -26,9 +26,14 @@ export function render(tpl: string, scope: Scope): Result<string> {
   return missing ? { ok: false, error: `unknown template variable "${missing}"` } : { ok: true, value: out };
 }
 
-/** Renders every string inside a JSON-like value. */
+/** Renders every string inside a JSON-like value. A string that is exactly one `{{path}}` keeps the raw value (array, number, ...). */
 export function renderDeep(value: unknown, scope: Scope): Result<unknown> {
-  if (typeof value === "string") return render(value, scope);
+  if (typeof value === "string") {
+    const path = value.match(/^\{\{\s*([^}]+?)\s*\}\}$/)?.[1];
+    if (path === undefined) return render(value, scope);
+    const v = resolve(path, scope);
+    return v === undefined ? { ok: false, error: `unknown template variable "${path}"` } : { ok: true, value: v };
+  }
   if (Array.isArray(value)) {
     const out: unknown[] = [];
     for (const v of value) {
