@@ -19,7 +19,7 @@ export function registerMcp(registry: Registry, servers: McpServerConfig[]): { c
     let p = clients.get(s.id);
     if (!p) {
       p = (async () => {
-        const c = new Client({ name: "milford", version: "0.0.1" });
+        const c = new Client({ name: "milford", version: "0.0.2" });
         await c.connect(new StreamableHTTPClientTransport(new URL(s.url), { requestInit: { headers: s.headers ?? {} } }));
         return c;
       })();
