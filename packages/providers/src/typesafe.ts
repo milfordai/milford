@@ -1,4 +1,4 @@
-import type { DecideRequest, Decision, ProviderFactory, Result } from "@loage/core";
+import type { DecideRequest, Decision, ProviderFactory, Result } from "@milford/core";
 import { z } from "zod";
 import { err, postJson } from "./util.js";
 

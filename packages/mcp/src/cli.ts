@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-import { loadConfig } from "@loage/config";
-import { createEngine, defaultRegistry } from "@loage/core";
-import { registerProviders } from "@loage/providers";
+import { loadConfig } from "@milford/config";
+import { createEngine, defaultRegistry } from "@milford/core";
+import { registerProviders } from "@milford/providers";
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import { registerMcp } from "./egress.js";
 import { serveHttp } from "./http.js";
@@ -9,9 +9,9 @@ import { createMcpFactory } from "./server.js";
 
 // stdout carries the protocol when serving stdio, so everything human-readable goes to stderr.
 const log = console.error;
-const die = (msg: string): never => (log(`loage-mcp: ${msg}`), process.exit(1));
+const die = (msg: string): never => (log(`milford-mcp: ${msg}`), process.exit(1));
 
-const path = process.argv[2] ?? process.env.LOAGE_CONFIG ?? "loage.config.yaml";
+const path = process.argv[2] ?? process.env.MILFORD_CONFIG ?? "milford.config.yaml";
 const loaded = loadConfig(path);
 if (!loaded.ok) die(loaded.error);
 const { config, providers, flows } = (loaded as Extract<typeof loaded, { ok: true }>).value;
@@ -29,13 +29,13 @@ let close: () => Promise<void>;
 if (mcp.transport === "stdio") {
   const handle = serveStdio(make);
   close = async () => void (await handle.close());
-  log(`loage-mcp: ${mcp.expose.length} tool(s) over stdio`);
+  log(`milford-mcp: ${mcp.expose.length} tool(s) over stdio`);
 } else {
   const loopback = ["127.0.0.1", "localhost", "::1"].includes(mcp.host);
   if (!mcp.auth.tokens.length && !loopback) die("mcp.auth.tokens is required when the HTTP transport listens beyond localhost");
   const http = serveHttp(make, { port: mcp.port, host: mcp.host, tokens: mcp.auth.tokens });
   close = http.close;
-  log(`loage-mcp: ${mcp.expose.length} tool(s) over HTTP on ${mcp.host}:${mcp.port}/mcp`);
+  log(`milford-mcp: ${mcp.expose.length} tool(s) over HTTP on ${mcp.host}:${mcp.port}/mcp`);
 }
 for (const sig of ["SIGINT", "SIGTERM"])
   process.on(sig, () => {

@@ -24,30 +24,9 @@ importers:
         specifier: ^5.0.1
         version: 5.0.1(@types/node@26.6.2)(vite@8.3.0(@types/node@26.6.2)(yaml@2.9.1))
 
-  examples/error-classification:
-    dependencies:
-      '@loage/core':
-        specifier: workspace:*
-        version: link:../../packages/core
-
-  examples/flows:
-    dependencies:
-      '@loage/core':
-        specifier: workspace:*
-        version: link:../../packages/core
-
-  examples/home-automation:
-    dependencies:
-      '@loage/core':
-        specifier: workspace:*
-        version: link:../../packages/core
-      '@loage/providers':
-        specifier: workspace:*
-        version: link:../../packages/providers
-
   packages/channels:
     dependencies:
-      '@loage/core':
+      '@milford/core':
         specifier: workspace:*
         version: link:../core
       zod:
@@ -56,7 +35,7 @@ importers:
 
   packages/config:
     dependencies:
-      '@loage/core':
+      '@milford/core':
         specifier: workspace:*
         version: link:../core
       yaml:
@@ -77,13 +56,13 @@ importers:
       '@hono/node-server':
         specifier: ^2.1.1
         version: 2.1.1(hono@4.13.8)
-      '@loage/config':
+      '@milford/config':
         specifier: workspace:*
         version: link:../config
-      '@loage/core':
+      '@milford/core':
         specifier: workspace:*
         version: link:../core
-      '@loage/providers':
+      '@milford/providers':
         specifier: workspace:*
         version: link:../providers
       '@modelcontextprotocol/client':
@@ -98,7 +77,7 @@ importers:
 
   packages/providers:
     dependencies:
-      '@loage/core':
+      '@milford/core':
         specifier: workspace:*
         version: link:../core
       zod:
@@ -110,19 +89,19 @@ importers:
       '@hono/node-server':
         specifier: ^2.1.1
         version: 2.1.1(hono@4.13.8)
-      '@loage/channels':
+      '@milford/channels':
         specifier: workspace:*
         version: link:../channels
-      '@loage/config':
+      '@milford/config':
         specifier: workspace:*
         version: link:../config
-      '@loage/core':
+      '@milford/core':
         specifier: workspace:*
         version: link:../core
-      '@loage/mcp':
+      '@milford/mcp':
         specifier: workspace:*
         version: link:../mcp
-      '@loage/providers':
+      '@milford/providers':
         specifier: workspace:*
         version: link:../providers
       hono:

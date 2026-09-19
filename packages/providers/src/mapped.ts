@@ -1,4 +1,4 @@
-import type { DecideRequest, Decision, Result } from "@loage/core";
+import type { DecideRequest, Decision, Result } from "@milford/core";
 import { z } from "zod";
 import { jsonPath } from "./jsonpath.js";
 import { err } from "./util.js";

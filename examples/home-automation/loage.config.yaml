@@ -1,9 +1,0 @@
-# yaml-language-server: $schema=../../packages/config/loage.config.schema.json
-providers:
-  # Jev is the fast decision backend; any provider that can `decide` fits the flow.
-  - { id: jev, type: typesafe, apiKey: "${TYPESAFE_API_KEY}", fallback: [local] }
-  # Fallback: any OpenAI-compatible server, for example a local one.
-  - { id: local, type: openai, baseUrl: "http://127.0.0.1:11434/v1", model: "llama3.2" }
-flows:
-  - { file: ./flow.json }
-server: { port: 8080, auth: { tokens: ["${LOAGE_TOKEN}"] } }

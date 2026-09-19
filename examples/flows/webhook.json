@@ -1,9 +1,0 @@
-{
-  "id": "webhook",
-  "nodes": [
-    { "id": "in", "type": "input" },
-    { "id": "notify", "type": "http", "config": { "url": "https://hooks.example.com/notify", "method": "POST", "headers": { "authorization": "Bearer ${WEBHOOK_TOKEN}" }, "body": { "text": "{{input.text}}" } }, "retry": { "attempts": 3, "backoffMs": 500 } },
-    { "id": "out", "type": "output" }
-  ],
-  "edges": [{ "from": "in", "to": "notify" }, { "from": "notify", "to": "out" }]
-}

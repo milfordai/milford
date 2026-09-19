@@ -5,12 +5,12 @@ WORKDIR /repo
 COPY . .
 RUN pnpm install --frozen-lockfile \
  && pnpm build \
- && pnpm --filter @loage/server deploy --prod --legacy /out \
- && pnpm --filter @loage/mcp deploy --prod --legacy /out-mcp
+ && pnpm --filter @milford/server deploy --prod --legacy /out \
+ && pnpm --filter @milford/mcp deploy --prod --legacy /out-mcp
 
 # `docker build --target mcp .` builds the MCP server. It needs `mcp.transport: http` in the config.
 FROM node:22-alpine AS mcp
-ENV NODE_ENV=production LOAGE_CONFIG=/config/loage.config.yaml
+ENV NODE_ENV=production MILFORD_CONFIG=/config/milford.config.yaml
 WORKDIR /app
 COPY --from=build /out-mcp .
 USER node
@@ -19,8 +19,8 @@ HEALTHCHECK --interval=30s --timeout=3s CMD node -e "fetch('http://127.0.0.1:809
 CMD ["node", "dist/cli.js"]
 
 # The HTTP server is the default target (the last stage).
-FROM node:22-alpine
-ENV NODE_ENV=production LOAGE_CONFIG=/config/loage.config.yaml
+FROM node:22-alpine AS server
+ENV NODE_ENV=production MILFORD_CONFIG=/config/milford.config.yaml
 WORKDIR /app
 COPY --from=build /out .
 USER node

@@ -17,7 +17,7 @@ export const slackConfig = z.object({
 type SlackEvent = { type: string; user?: string; text?: string; channel: string; ts: string; thread_ts?: string; channel_type?: string; subtype?: string; bot_id?: string };
 
 /**
- * Socket Mode: Loage opens an outbound WebSocket, so no public URL is needed. Handles DMs and @mentions,
+ * Socket Mode: Milford opens an outbound WebSocket, so no public URL is needed. Handles DMs and @mentions,
  * acknowledges every envelope at once (Slack redelivers otherwise) and reconnects with backoff.
  */
 export function slack(cfg: z.infer<typeof slackConfig>, deps: ChannelDeps): Channel {

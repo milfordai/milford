@@ -1,4 +1,4 @@
-import { createEngine, defaultRegistry, type Engine, type Flow } from "@loage/core";
+import { createEngine, defaultRegistry, type Engine, type Flow } from "@milford/core";
 import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
 import { createMcpHandler } from "@modelcontextprotocol/server";
 import { afterEach, describe, expect, it } from "vitest";

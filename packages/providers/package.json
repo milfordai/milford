@@ -1,6 +1,6 @@
 {
-  "name": "@loage/providers",
-  "version": "0.0.1",
+  "name": "@milford/providers",
+  "version": "0.0.2",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -14,12 +14,36 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
-    "@loage/core": "workspace:*",
+    "@milford/core": "workspace:*",
     "zod": "^4.6.5"
+  },
+  "description": "Milford provider adapters: OpenAI-compatible servers, Anthropic, Jev and a generic HTTP classifier.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/milfordai/milford.git",
+    "directory": "packages/providers"
+  },
+  "homepage": "https://milford.mintlify.site",
+  "bugs": {
+    "url": "https://github.com/milfordai/milford/issues"
+  },
+  "keywords": [
+    "milford",
+    "llm",
+    "openai",
+    "anthropic",
+    "classifier"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
