@@ -4,8 +4,13 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "bin": { "loage-server": "dist/cli.js" },
-  "files": ["dist", "loage.config.schema.json"],
+  "bin": {
+    "loage-server": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "loage.config.schema.json"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json && node dist/gen-schema.js",
     "typecheck": "tsc --noEmit",
@@ -13,6 +18,7 @@
   },
   "dependencies": {
     "@hono/node-server": "^2.1.1",
+    "@loage/channels": "workspace:*",
     "@loage/core": "workspace:*",
     "@loage/providers": "workspace:*",
     "hono": "^4.13.8",

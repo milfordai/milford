@@ -29,6 +29,8 @@ export const ConfigSchema = z.object({
     rateLimit: z.object({ perSecond: z.number().positive(), burst: z.number().positive().optional() }).optional(),
   })).default([]),
   flows: z.array(z.object({ id: z.string().optional(), file: z.string() })).default([]),
+  /** Chat and webhook entry points. Each is validated by @loage/channels when the server starts. */
+  channels: z.array(z.looseObject({ id: z.string(), type: z.string(), flow: z.string() })).default([]),
   server: z.object({
     port: z.number().int().default(8080),
     auth: z.object({ tokens: z.array(z.string()).default([]) }).default({ tokens: [] }),
