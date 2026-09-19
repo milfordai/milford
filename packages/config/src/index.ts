@@ -72,7 +72,7 @@ export function interpolate(value: unknown, env: Record<string, string | undefin
 
 export type Loaded = { config: Config; providers: ProviderConfig[]; flows: Flow[] };
 
-/** Parses YAML text, interpolates env vars, validates, and reads the referenced flow files (relative to `baseDir`). */
+/** Parses YAML text (flow files may be YAML or JSON), interpolates env vars, validates, and reads the referenced flow files (relative to `baseDir`). */
 export function parseConfig(text: string, baseDir: string, env: Record<string, string | undefined> = process.env, readFile: (p: string) => string = (p) => readFileSync(p, "utf8")): Result<Loaded> {
   let raw: unknown;
   try {
@@ -91,7 +91,7 @@ export function parseConfig(text: string, baseDir: string, env: Record<string, s
     const file = resolve(baseDir, f.file);
     let json: unknown;
     try {
-      json = JSON.parse(readFile(file));
+      json = parse(readFile(file)); // JSON is valid YAML, so existing .json flows keep working
     } catch (e) {
       return { ok: false, error: `flow file ${f.file}: ${(e as Error).message}` };
     }

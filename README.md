@@ -28,24 +28,23 @@ Save this as `milford.config.yaml`:
 
 ```yaml
 flows:
-  - { file: ./flows/hello.json }
+  - { file: ./flows/hello.yaml }
 server:
   port: 8080
   auth: { tokens: ["${MILFORD_TOKEN}"] }
 ```
 
-Save this as `flows/hello.json`:
+Save this as `flows/hello.yaml`:
 
-```json
-{
-  "id": "hello",
-  "nodes": [
-    { "id": "in", "type": "input" },
-    { "id": "greet", "type": "prompt", "config": { "template": "Hello {{input.name}}!" } },
-    { "id": "out", "type": "output" }
-  ],
-  "edges": [{ "from": "in", "to": "greet" }, { "from": "greet", "to": "out" }]
-}
+```yaml
+id: hello
+nodes:
+  - { id: in, type: input }
+  - { id: greet, type: prompt, config: { template: "Hello {{input.name}}!" } }
+  - { id: out, type: output }
+edges:
+  - { from: in, to: greet }
+  - { from: greet, to: out }
 ```
 
 **Step 2:** Start Milford
@@ -91,7 +90,7 @@ Then use it in a flow. Edges with `when` route on the answer, and a low-confiden
 { "from": "team", "to": "billing-reply", "when": { "path": "data.choice", "op": "eq", "value": "billing" } }
 ```
 
-The complete flow is `flows/triage.json` in the examples. Switching the provider to an OpenAI-compatible server or a local classifier is a config change, and the flow stays the same.
+The complete flow is `flows/triage.yaml` in the examples. Switching the provider to an OpenAI-compatible server or a local classifier is a config change, and the flow stays the same.
 
 **That's it!** Your flow runs behind an authenticated API with streaming, idempotent retries and run limits.
 
@@ -359,7 +358,7 @@ providers:
     baseUrl: http://localhost:11434/v1
     model: llama3.2
 flows:
-  - { file: ./flows/triage.json }
+  - { file: ./flows/triage.yaml }
 channels:
   - id: support-slack
     type: slack

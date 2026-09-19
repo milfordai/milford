@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../../packages/config/milford.config.schema.json
 flows:
-  - { file: ./hello.json }
+  - { file: ./hello.yaml }
 server:
   port: 8080
   auth: { tokens: ["${MILFORD_TOKEN}"] }

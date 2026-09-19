@@ -54,4 +54,10 @@ describe("mcp config", () => {
     if (!r.ok) throw new Error(r.error);
     expect(r.value.flows[0]).toMatchObject({ description: "does a thing", input: { type: "object" } });
   });
+  it("reads a flow written in YAML", () => {
+    const flow = "id: f\nnodes:\n  - { id: out, type: output }\nedges: []\n";
+    const r = parseConfig("flows: [{ file: ./f.yaml }]", "/", {}, () => flow);
+    if (!r.ok) throw new Error(r.error);
+    expect(r.value.flows[0]).toMatchObject({ id: "f", nodes: [{ id: "out", type: "output" }] });
+  });
 });
