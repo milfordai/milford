@@ -242,8 +242,8 @@ Give a flow a `description` and an `input` JSON Schema, and clients see them as 
 **Best for:** embedding the engine in a TypeScript app.
 
 ```ts
-import { createEngine, defaultRegistry, flow } from "@milford/core";
-import { registerProviders } from "@milford/providers";
+import { createEngine, defaultRegistry, flow } from "@milfordai/core";
+import { registerProviders } from "@milfordai/providers";
 
 const engine = createEngine({
   registry: registerProviders(defaultRegistry()),

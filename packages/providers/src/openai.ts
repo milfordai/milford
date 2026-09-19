@@ -1,4 +1,4 @@
-import type { ProviderFactory } from "@milford/core";
+import type { ProviderFactory } from "@milfordai/core";
 import { z } from "zod";
 import { DECISION_SYSTEM, decisionPrompt, decisionSchema, err, parseDecision, postJson } from "./util.js";
 

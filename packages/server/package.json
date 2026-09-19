@@ -1,6 +1,6 @@
 {
-  "name": "@milford/server",
-  "version": "0.0.2",
+  "name": "@milfordai/server",
+  "version": "0.0.3",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -18,11 +18,11 @@
   },
   "dependencies": {
     "@hono/node-server": "^2.1.1",
-    "@milford/channels": "workspace:*",
-    "@milford/config": "workspace:*",
-    "@milford/core": "workspace:*",
-    "@milford/mcp": "workspace:*",
-    "@milford/providers": "workspace:*",
+    "@milfordai/channels": "workspace:*",
+    "@milfordai/config": "workspace:*",
+    "@milfordai/core": "workspace:*",
+    "@milfordai/mcp": "workspace:*",
+    "@milfordai/providers": "workspace:*",
     "hono": "^4.13.8"
   },
   "devDependencies": {

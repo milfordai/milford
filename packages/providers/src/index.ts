@@ -1,4 +1,4 @@
-import type { Registry } from "@milford/core";
+import type { Registry } from "@milfordai/core";
 import { anthropic } from "./anthropic.js";
 import { http } from "./http.js";
 import { openai } from "./openai.js";

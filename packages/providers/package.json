@@ -1,6 +1,6 @@
 {
-  "name": "@milford/providers",
-  "version": "0.0.2",
+  "name": "@milfordai/providers",
+  "version": "0.0.3",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -19,7 +19,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@milford/core": "workspace:*",
+    "@milfordai/core": "workspace:*",
     "zod": "^4.6.5"
   },
   "description": "Milford provider adapters: OpenAI-compatible servers, Anthropic, Jev and a generic HTTP classifier.",

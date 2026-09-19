@@ -1,4 +1,4 @@
-import { render, renderDeep, scopeOf, type NodeDef, type Registry } from "@milford/core";
+import { render, renderDeep, scopeOf, type NodeDef, type Registry } from "@milfordai/core";
 import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
 import { z } from "zod";
 
@@ -19,7 +19,7 @@ export function registerMcp(registry: Registry, servers: McpServerConfig[]): { c
     let p = clients.get(s.id);
     if (!p) {
       p = (async () => {
-        const c = new Client({ name: "milford", version: "0.0.2" });
+        const c = new Client({ name: "milford", version: "0.0.3" });
         await c.connect(new StreamableHTTPClientTransport(new URL(s.url), { requestInit: { headers: s.headers ?? {} } }));
         return c;
       })();
