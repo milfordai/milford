@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 import { createChannels } from "@loage/channels";
+import { loadConfig } from "@loage/config";
 import { createEngine, defaultRegistry } from "@loage/core";
 import { registerProviders } from "@loage/providers";
 import { serve } from "@hono/node-server";
 import { createApp } from "./app.js";
-import { loadConfig } from "./config.js";
+
 
 const path = process.argv[2] ?? process.env.LOAGE_CONFIG ?? "loage.config.yaml";
 const die = (msg: string): never => (console.error(`loage: ${msg}`), process.exit(1));

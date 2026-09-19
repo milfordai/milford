@@ -213,6 +213,11 @@ components:
       properties:
         id: { type: string }
         nodes: { type: integer, description: Number of nodes in the flow. }
+        description: { type: string, description: What the flow does. }
+        input:
+          type: object
+          description: JSON Schema of the run input, when the flow declares one.
+          additionalProperties: true
     NodeResult:
       type: object
       required: [success]

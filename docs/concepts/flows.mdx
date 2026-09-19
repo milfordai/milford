@@ -13,6 +13,11 @@ A flow is plain JSON. It has no positions or UI types, so you can write it by ha
 }
 ```
 
+A flow can also carry two optional fields for the callers that use it:
+
+<ParamField body="description" type="string">What the flow does. MCP clients see it as the tool description.</ParamField>
+<ParamField body="input" type="object">JSON Schema of the run input, with an `object` at the top level. MCP clients see it as the tool arguments. `GET /v1/flows` returns it. The engine does not enforce it.</ParamField>
+
 ## Nodes
 
 Each node has an `id`, a `type` and a `config`. Optional fields apply to every node type:

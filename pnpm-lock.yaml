@@ -54,6 +54,18 @@ importers:
         specifier: ^4.6.5
         version: 4.6.5
 
+  packages/config:
+    dependencies:
+      '@loage/core':
+        specifier: workspace:*
+        version: link:../core
+      yaml:
+        specifier: ^2.9.1
+        version: 2.9.1
+      zod:
+        specifier: ^4.6.5
+        version: 4.6.5
+
   packages/core:
     dependencies:
       zod:
@@ -77,6 +89,9 @@ importers:
       '@loage/channels':
         specifier: workspace:*
         version: link:../channels
+      '@loage/config':
+        specifier: workspace:*
+        version: link:../config
       '@loage/core':
         specifier: workspace:*
         version: link:../core
@@ -86,12 +101,10 @@ importers:
       hono:
         specifier: ^4.13.8
         version: 4.13.8
+    devDependencies:
       yaml:
         specifier: ^2.9.1
         version: 2.9.1
-      zod:
-        specifier: ^4.6.5
-        version: 4.6.5
 
 packages:
 

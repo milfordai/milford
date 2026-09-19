@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=../../packages/server/loage.config.schema.json
+# yaml-language-server: $schema=../../packages/config/loage.config.schema.json
 providers:
   - { id: main-llm, type: anthropic, apiKey: "${ANTHROPIC_API_KEY}", model: claude-sonnet-5 }
 flows:

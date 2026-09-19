@@ -8,21 +8,22 @@
     "loage-server": "dist/cli.js"
   },
   "files": [
-    "dist",
-    "loage.config.schema.json"
+    "dist"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json && node dist/gen-schema.js",
+    "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.1",
     "@loage/channels": "workspace:*",
+    "@loage/config": "workspace:*",
     "@loage/core": "workspace:*",
     "@loage/providers": "workspace:*",
-    "hono": "^4.13.8",
-    "yaml": "^2.9.1",
-    "zod": "^4.6.5"
+    "hono": "^4.13.8"
+  },
+  "devDependencies": {
+    "yaml": "^2.9.1"
   }
 }

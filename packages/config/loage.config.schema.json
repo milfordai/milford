@@ -107,6 +107,118 @@
         "additionalProperties": {}
       }
     },
+    "mcpServers": {
+      "default": [],
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "headers": {
+            "default": {},
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "url",
+          "headers"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "mcp": {
+      "default": {
+        "expose": [],
+        "transport": "stdio",
+        "port": 8090,
+        "host": "0.0.0.0",
+        "auth": {
+          "tokens": []
+        },
+        "runTimeoutMs": 60000,
+        "maxConcurrentRuns": 64
+      },
+      "type": "object",
+      "properties": {
+        "expose": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "transport": {
+          "default": "stdio",
+          "type": "string",
+          "enum": [
+            "stdio",
+            "http"
+          ]
+        },
+        "port": {
+          "default": 8090,
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "host": {
+          "default": "0.0.0.0",
+          "type": "string"
+        },
+        "auth": {
+          "default": {
+            "tokens": []
+          },
+          "type": "object",
+          "properties": {
+            "tokens": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "tokens"
+          ],
+          "additionalProperties": false
+        },
+        "runTimeoutMs": {
+          "default": 60000,
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "maxConcurrentRuns": {
+          "default": 64,
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "expose",
+        "transport",
+        "port",
+        "host",
+        "auth",
+        "runTimeoutMs",
+        "maxConcurrentRuns"
+      ],
+      "additionalProperties": false
+    },
     "server": {
       "default": {
         "port": 8080,
@@ -183,6 +295,8 @@
     "providers",
     "flows",
     "channels",
+    "mcpServers",
+    "mcp",
     "server"
   ],
   "additionalProperties": false

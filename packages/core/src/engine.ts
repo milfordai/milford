@@ -15,7 +15,7 @@ export type EngineConfig = {
 };
 
 export type Engine = {
-  flows(): { id: string; nodes: number }[];
+  flows(): { id: string; nodes: number; description?: string; input?: Record<string, unknown> }[];
   run(flowId: string, input?: Record<string, unknown>, opts?: Omit<RunOptions, "input">): Promise<Result<RunResult>>;
 };
 
@@ -58,7 +58,7 @@ export function createEngine(cfg: EngineConfig): Result<Engine> {
   return {
     ok: true,
     value: {
-      flows: () => [...compiled.values()].map((c) => ({ id: c.flow.id, nodes: c.flow.nodes.length })),
+      flows: () => [...compiled.values()].map(({ flow: f }) => ({ id: f.id, nodes: f.nodes.length, description: f.description, input: f.input })),
       async run(flowId, input = {}, opts = {}) {
         const c = compiled.get(flowId);
         if (!c) return { ok: false, error: `unknown flow "${flowId}"` };
