@@ -7,7 +7,7 @@ Milford is a headless intelligent workflow engine: a TypeScript core library plu
 - Vendors are adapters in `packages/providers` (Jev is one adapter among several, never required).
 - Nodes and providers are registered by `type` (registry + strategy). No growing `switch`.
 - Nodes and providers return results (`{ok, value} | {ok: false, error}`), they do not throw.
-- Flows are plain JSON. No UI types or positions in the model.
+- Flows are plain data, written in YAML (JSON also loads). No UI types or positions in the model.
 - Dependencies stay minimal: `zod`, `yaml`, `hono`, `vitest`. Providers use plain `fetch`.
 - Prefer the smallest change that works; no speculative abstractions.
 
