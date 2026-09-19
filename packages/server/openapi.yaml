@@ -58,6 +58,60 @@ paths:
                     type: array
                     items: { $ref: "#/components/schemas/FlowSummary" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+  /v1/runs:
+    get:
+      operationId: listRuns
+      summary: List finished runs
+      description: |
+        The newest runs of the API, newest first. Which runs are kept, and for how long, is set by `server.runs`:
+        the newest `max` runs, in memory or in a file. A run answered from the flow cache is not listed again.
+      parameters:
+        - name: flow
+          in: query
+          required: false
+          description: Only runs of this flow.
+          schema: { type: string }
+        - name: limit
+          in: query
+          required: false
+          description: Most runs to return, from 1 to 500.
+          schema: { type: integer, default: 50, minimum: 1, maximum: 500 }
+      responses:
+        "200":
+          description: The runs.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [runs]
+                properties:
+                  runs:
+                    type: array
+                    items: { $ref: "#/components/schemas/RunSummary" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /v1/runs/{id}:
+    get:
+      operationId: getRun
+      summary: Get a finished run
+      description: "The trace of one run. With `server.runs.record: full` it also holds the input and every node result."
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Run id, from a run result or from `GET /v1/runs`.
+          schema: { type: string }
+      responses:
+        "200":
+          description: The run.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RunRecord" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404":
+          description: Unknown run, or one that is no longer kept.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
   /v1/flows/{id}/run:
     post:
       operationId: runFlow
@@ -242,6 +296,42 @@ components:
           type: object
           description: JSON Schema of the run input, when the flow declares one.
           additionalProperties: true
+    RunSummary:
+      type: object
+      required: [runId, flow, startedAt, ms, ok, nodes]
+      properties:
+        runId: { type: string }
+        flow: { type: string }
+        startedAt: { type: string, format: date-time }
+        ms: { type: integer, description: Duration of the run in milliseconds. }
+        ok: { type: boolean, description: False when any node failed. }
+        nodes: { type: integer, description: Number of nodes that have a state in the trace. }
+    RunRecord:
+      type: object
+      required: [runId, flow, startedAt, ms, ok, nodes]
+      properties:
+        runId: { type: string }
+        flow: { type: string }
+        startedAt: { type: string, format: date-time }
+        ms: { type: integer }
+        ok: { type: boolean }
+        nodes:
+          type: object
+          description: The trace, keyed by node id.
+          additionalProperties:
+            type: object
+            required: [status]
+            properties:
+              status: { type: string, enum: [done, error, skipped] }
+              ms: { type: integer }
+              error: { type: string }
+              result: { $ref: "#/components/schemas/NodeResult" }
+        input:
+          type: object
+          additionalProperties: true
+          description: "The run input. Only with `server.runs.record: full`."
+        output:
+          $ref: "#/components/schemas/NodeResult"
     NodeResult:
       type: object
       required: [success]

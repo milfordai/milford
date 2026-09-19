@@ -68,4 +68,13 @@ describe("mcp config", () => {
     expect(parseConfig("flows: [{ file: ./f.json }]", "/", {}, () => flow({ mode: "semantic", ttlMs: 1 })).ok).toBe(false);
     expect(parseConfig("flows: [{ file: ./f.json }]", "/", {}, () => flow({ mode: "direct", ttlMs: 0 })).ok).toBe(false);
   });
+  it("defaults run history to memory and resolves the file path against the config", () => {
+    const d = parseConfig("{}", "/cfg", {}, read);
+    if (!d.ok) throw new Error(d.error);
+    expect(d.value.config.server.runs).toMatchObject({ store: "memory", max: 200, record: "trace", path: "/cfg/milford-runs.jsonl" });
+    const f = parseConfig("server: { runs: { store: file, path: history/runs.jsonl, record: full } }", "/cfg", {}, read);
+    if (!f.ok) throw new Error(f.error);
+    expect(f.value.config.server.runs).toMatchObject({ store: "file", path: "/cfg/history/runs.jsonl", record: "full" });
+    expect(parseConfig("server: { runs: { record: everything } }", "/cfg", {}, read).ok).toBe(false);
+  });
 });

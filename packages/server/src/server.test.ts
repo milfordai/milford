@@ -269,3 +269,50 @@ describe("flow cache over HTTP", () => {
     expect(spec.paths["/v1/flows/{id}/run"].post.parameters.map((p: { name: string }) => p.name)).toContain("Cache-Control");
   });
 });
+
+describe("run history", () => {
+  const flow = { id: "greet", input: { type: "object", properties: { name: { type: "string" } }, required: ["name"] }, cache: { mode: "direct" as const, ttlMs: 60_000 }, nodes: [{ id: "hi", type: "prompt", config: { template: "Hello {{input.name}}!" } }, { id: "out", type: "output" }], edges: [{ from: "hi", to: "out" }] };
+  const make = (recordRuns?: "trace" | "full") => {
+    const engine = createEngine({ registry: defaultRegistry(), flows: [flow] });
+    if (!engine.ok) throw new Error(engine.error);
+    return createApp({ engine: engine.value, log: () => {}, recordRuns });
+  };
+  const run = async (app: ReturnType<typeof make>, input: object, path = "/v1/flows/greet/run", headers: Record<string, string> = {}) => app.request(path, { method: "POST", headers, body: JSON.stringify({ input }) });
+  const list = async (app: ReturnType<typeof make>, q = "") => ((await (await app.request(`/v1/runs${q}`)).json()) as { runs: { runId: string; flow: string; ok: boolean; nodes: number }[] }).runs;
+
+  it("lists runs newest first and returns one trace, without inputs or outputs by default", async () => {
+    const app = make();
+    const a = (await (await run(app, { name: "Ann" })).json()) as { runId: string };
+    const b = (await (await run(app, { name: "Bo" })).json()) as { runId: string };
+    expect((await list(app)).map((r) => r.runId)).toEqual([b.runId, a.runId]);
+    expect(await list(app, "?flow=nope")).toEqual([]);
+    const one = await app.request(`/v1/runs/${a.runId}`);
+    const body = await one.json();
+    expect(body).toMatchObject({ runId: a.runId, flow: "greet", ok: true });
+    expect(JSON.stringify(body)).not.toContain("Ann");
+    expect((await app.request("/v1/runs/nope")).status).toBe(404);
+  });
+
+  it("keeps inputs and results with record: full", async () => {
+    const app = make("full");
+    const a = (await (await run(app, { name: "Ann" })).json()) as { runId: string };
+    const body = (await (await app.request(`/v1/runs/${a.runId}`)).json()) as { input: unknown; output: { output: string } };
+    expect(body.input).toEqual({ name: "Ann" });
+    expect(body.output.output).toBe("Hello Ann!");
+  });
+
+  it("saves streamed runs, and skips cache hits and rejected input", async () => {
+    const app = make();
+    await (await run(app, { name: "Cy" }, "/v1/flows/greet/run", { accept: "text/event-stream" })).text(); // read to the end: the run finishes with the stream
+    expect(await list(app)).toHaveLength(1);
+    await run(app, { name: "Di" });
+    await run(app, { name: "Di" }); // a cache hit: not a new run
+    await run(app, { name: 1 }); // invalid input: nothing ran
+    expect(await list(app)).toHaveLength(2);
+  });
+
+  it("is documented", () => {
+    const spec = parse(readFileSync(new URL("../openapi.yaml", import.meta.url), "utf8")) as { paths: Record<string, unknown> };
+    expect(Object.keys(spec.paths)).toEqual(expect.arrayContaining(["/v1/runs", "/v1/runs/{id}"]));
+  });
+});

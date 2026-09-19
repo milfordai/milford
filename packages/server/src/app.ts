@@ -6,6 +6,7 @@ import { bodyLimit } from "hono/body-limit";
 import { streamSSE } from "hono/streaming";
 import { createIdempotencyStore } from "./idempotency.js";
 import { buildOpenApi } from "./openapi.js";
+import { memoryRunStore, summarize, toRecord, type RunStore } from "./runs.js";
 
 const digest = (s: string) => createHash("sha256").update(s).digest();
 
@@ -15,6 +16,10 @@ export type AppOptions = {
   maxBodyBytes?: number;
   /** How long a completed run is kept for `Idempotency-Key` replays. */
   idempotencyTtlMs?: number;
+  /** Finished runs of the API are saved here, and listed at `GET /v1/runs`. In memory by default. */
+  runs?: RunStore;
+  /** What a saved run keeps. `trace` (default) is status, timing and errors. `full` adds inputs and node results. */
+  recordRuns?: "trace" | "full";
   /** Channels with a `handle` are mounted at POST /hooks/:id. */
   channels?: Channel[];
   /** One JSON line per finished run. Defaults to stdout; pass a no-op to silence. */
@@ -22,7 +27,7 @@ export type AppOptions = {
 };
 
 /** HTTP surface over an Engine. */
-export function createApp({ engine, tokens = [], maxBodyBytes = 1_000_000, idempotencyTtlMs = 600_000, channels = [], log = console.log }: AppOptions): Hono {
+export function createApp({ engine, tokens = [], maxBodyBytes = 1_000_000, idempotencyTtlMs = 600_000, runs = memoryRunStore(), recordRuns = "trace", channels = [], log = console.log }: AppOptions): Hono {
   const app = new Hono();
   const idempotent = createIdempotencyStore<RunResult>(idempotencyTtlMs);
   app.onError((err, c) => {
@@ -52,6 +57,15 @@ export function createApp({ engine, tokens = [], maxBodyBytes = 1_000_000, idemp
 
   app.get("/v1/flows", (c) => c.json({ flows: engine.flows() }));
 
+  app.get("/v1/runs", (c) => {
+    const limit = Math.min(Math.max(Number(c.req.query("limit")) || 50, 1), 500);
+    return c.json({ runs: runs.list({ flow: c.req.query("flow"), limit }).map(summarize) });
+  });
+  app.get("/v1/runs/:id", (c) => {
+    const r = runs.get(c.req.param("id"));
+    return r ? c.json(r) : c.json({ error: `unknown run "${c.req.param("id")}"` }, 404);
+  });
+
   app.post("/v1/flows/:id/run", async (c) => {
     const id = c.req.param("id");
     if (!engine.flows().some((f) => f.id === id)) return c.json({ error: `unknown flow "${id}"` }, 404);
@@ -79,6 +93,9 @@ export function createApp({ engine, tokens = [], maxBodyBytes = 1_000_000, idemp
       }
     }
     const started = performance.now();
+    const startedAt = new Date();
+    // A cache hit is an earlier run, not a new one, so it is not saved again.
+    const save = (r: RunResult) => r.cache === "hit" || runs.save(toRecord(id, startedAt, performance.now() - started, r, input, recordRuns));
     const done = (ok: boolean, runId?: string, cache?: string) => log(JSON.stringify({ level: "info", msg: "run", flow: id, ok, runId, cache, ms: Math.round(performance.now() - started) }));
     // `no-cache` skips the lookup of a cached flow and refreshes it, `no-store` skips the cache altogether.
     const control = c.req.header("cache-control") ?? "";
@@ -90,6 +107,7 @@ export function createApp({ engine, tokens = [], maxBodyBytes = 1_000_000, idemp
       try {
         const r = await engine.run(id, input, { signal: c.req.raw.signal, cache });
         done(r.ok && r.value.ok, r.ok ? r.value.runId : undefined, r.ok ? r.value.cache : undefined);
+        if (r.ok) save(r.value);
         // Only successful runs are kept, so a retry after a failure runs again.
         if (r.ok && r.value.ok) kept = r.value;
         if (r.ok) return c.json(r.value);
@@ -107,6 +125,7 @@ export function createApp({ engine, tokens = [], maxBodyBytes = 1_000_000, idemp
       const send = (event: string, data: unknown) => (writes = writes.then(() => stream.writeSSE({ event, data: JSON.stringify(data) })).catch(() => {}));
       const r = await engine.run(id, input, { signal: abort.signal, onEvent: (e) => void send(e.type, e) });
       done(r.ok && r.value.ok, r.ok ? r.value.runId : undefined);
+      if (r.ok) save(r.value);
       await send("result", r.ok ? r.value : { error: r.error });
     });
   });

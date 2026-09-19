@@ -59,7 +59,17 @@ export const ConfigSchema = z.object({
     idempotencyTtlMs: z.number().positive().default(600_000),
     /** Largest accepted request body. */
     maxBodyBytes: z.number().int().positive().default(1_000_000),
-  }).default({ port: 8080, auth: { tokens: [] }, idempotencyTtlMs: 600_000, maxBodyBytes: 1_000_000 }),
+    /** History of finished runs, listed at `GET /v1/runs`. */
+    runs: z.object({
+      store: z.enum(["memory", "file"]).default("memory"),
+      /** JSON-lines file for `store: file`, relative to the config file. */
+      path: z.string().default("milford-runs.jsonl"),
+      /** Runs kept and listed. */
+      max: z.number().int().positive().default(200),
+      /** `trace` keeps status, timing and errors. `full` also keeps inputs and node results. */
+      record: z.enum(["trace", "full"]).default("trace"),
+    }).default({ store: "memory", path: "milford-runs.jsonl", max: 200, record: "trace" }),
+  }).default({ port: 8080, auth: { tokens: [] }, idempotencyTtlMs: 600_000, maxBodyBytes: 1_000_000, runs: { store: "memory", path: "milford-runs.jsonl", max: 200, record: "trace" } }),
 });
 export type Config = z.infer<typeof ConfigSchema>;
 
@@ -100,7 +110,10 @@ export function parseConfig(text: string, baseDir: string, env: Record<string, s
     if (!flow.success) return { ok: false, error: `flow file ${f.file}: ${flow.error.issues.map((i) => `${i.path.join(".") || "flow"}: ${i.message}`).join("; ")}` };
     flows.push(flow.data as Flow);
   }
-  return { ok: true, value: { config: parsed.data, providers: parsed.data.providers as ProviderConfig[], flows } };
+  // A new object, because the defaults zod fills in are shared between parses.
+  const { server } = parsed.data;
+  const config = { ...parsed.data, server: { ...server, runs: { ...server.runs, path: resolve(baseDir, server.runs.path) } } };
+  return { ok: true, value: { config, providers: parsed.data.providers as ProviderConfig[], flows } };
 }
 
 export function loadConfig(path: string, env: Record<string, string | undefined> = process.env): Result<Loaded> {
