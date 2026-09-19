@@ -23,6 +23,17 @@ Flow file paths in the config are relative to the config file, so `./flows/triag
   The image healthcheck calls `/health` on port 8080. If you change `server.port`, update the healthcheck.
 </Note>
 
+## MCP server image
+
+The `Dockerfile` has a second target for the [MCP server](/guides/mcp). Set `mcp.transport: http` and `mcp.auth.tokens` in the config, then run it with the `mcp` profile:
+
+```bash
+export LOAGE_MCP_TOKEN=change-me
+docker compose --profile mcp up --build mcp
+```
+
+It listens on port 8090 and its healthcheck calls `/health` there. The HTTP server image stays the default target.
+
 ## Image publishing
 
 The `docker` GitHub Actions workflow builds a multi-arch image and pushes it to `ghcr.io/<owner>/<repo>` when you push a `v*` tag.

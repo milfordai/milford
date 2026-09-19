@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=../../packages/server/loage.config.schema.json
+# yaml-language-server: $schema=../../packages/config/loage.config.schema.json
 providers:
   # Swap the type for `openai` (any compatible server), `typesafe` or `http` (an on-prem classifier)
   # without touching the flow.

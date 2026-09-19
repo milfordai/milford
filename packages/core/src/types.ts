@@ -18,7 +18,15 @@ export type Node = {
   meta?: unknown;
 };
 export type Edge = { from: string; to: string; when?: Condition };
-export type Flow = { id: string; nodes: Node[]; edges: Edge[] };
+export type Flow = {
+  id: string;
+  /** What the flow does. Shown to callers such as MCP clients. */
+  description?: string;
+  /** JSON Schema of the run input, for callers that need to describe it. The engine does not enforce it. */
+  input?: Record<string, unknown>;
+  nodes: Node[];
+  edges: Edge[];
+};
 
 export type NodeResult = { success: boolean; output?: string; data?: unknown; error?: string };
 

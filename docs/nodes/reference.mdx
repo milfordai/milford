@@ -47,6 +47,17 @@ A generic HTTP call. `url`, `headers` and `body` are templated. A response outsi
 
 The result's `data` is `{ status, body }`, where `body` is parsed JSON when possible.
 
+## mcp
+
+Calls a tool on another MCP server. See [MCP](/guides/mcp).
+
+<ParamField body="server" type="string" required>Id of a server under `mcpServers`. Loading fails for an unknown id.</ParamField>
+<ParamField body="tool" type="string" required>Tool name. Templated.</ParamField>
+<ParamField body="arguments" type="object">Tool arguments. Templated.</ParamField>
+<ParamField body="allow" type="string[]">Tools this node may call. Required when `tool` is a template.</ParamField>
+
+`output` is the tool's text. `data` is its structured content, or the text parsed as JSON. A tool error fails the node.
+
 ## output
 
 Marks the flow result.

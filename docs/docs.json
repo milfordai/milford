@@ -33,7 +33,8 @@
         "pages": [
           "guides/home-automation",
           "guides/channels",
-          "guides/enterprise-integration"
+          "guides/enterprise-integration",
+          "guides/mcp"
         ]
       },
       {

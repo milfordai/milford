@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { parse } from "yaml";
 import { describe, expect, it } from "vitest";
 import { createApp } from "./app.js";
-import { parseConfig } from "./config.js";
+import { parseConfig } from "@loage/config";
 
 const yaml = `
 providers:
@@ -21,31 +21,6 @@ const read = (p: string) => {
   if (p.endsWith("hello.json")) return flowJson;
   throw new Error("ENOENT");
 };
-
-describe("config", () => {
-  it("interpolates env vars, validates, and loads flow files", () => {
-    const r = parseConfig(yaml, "/cfg", { KEY: "k1", TOKEN: "t1" }, read);
-    if (!r.ok) throw new Error(r.error);
-    expect(r.value.providers[0]).toMatchObject({ id: "m", apiKey: "k1" });
-    expect(r.value.config.server).toMatchObject({ port: 9000, auth: { tokens: ["t1"] } });
-    expect(r.value.flows[0]?.id).toBe("hello");
-  });
-  it("lists every missing env var", () => {
-    expect(parseConfig(yaml, "/cfg", {}, read)).toEqual({ ok: false, error: "environment variables not set: KEY, TOKEN" });
-  });
-  it("defaults the run timeout and accepts provider resilience settings", () => {
-    const r = parseConfig("providers: [{ id: a, type: openai, circuitBreaker: { failures: 3, resetMs: 5000 }, rateLimit: { perSecond: 2 } }]", "/", {}, read);
-    if (!r.ok) throw new Error(r.error);
-    expect(r.value.config.server.runTimeoutMs).toBe(60000);
-    expect(r.value.providers[0]).toMatchObject({ circuitBreaker: { failures: 3, resetMs: 5000 }, rateLimit: { perSecond: 2 } });
-    expect(parseConfig("providers: [{ id: a, type: x, rateLimit: { perSecond: 0 } }]", "/", {}, read).ok).toBe(false);
-  });
-  it("reports schema and flow-file problems", () => {
-    expect(parseConfig("providers: [{ id: x }]", "/", {}, read).ok).toBe(false);
-    expect(parseConfig("flows: [{ file: ./missing.json }]", "/", {}, read).ok).toBe(false);
-    expect(parseConfig("flows: [{ file: ./hello.json }]", "/", {}, () => '{"id":1}').ok).toBe(false);
-  });
-});
 
 describe("server", () => {
   const fake: Provider = { id: "m", type: "fake", capabilities: [], };

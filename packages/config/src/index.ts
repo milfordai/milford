@@ -7,6 +7,8 @@ import { z } from "zod";
 const Condition = z.object({ path: z.string(), op: z.enum(["eq", "neq", "gt", "gte", "lt", "lte"]), value: z.unknown() });
 export const FlowSchema = z.object({
   id: z.string(),
+  description: z.string().optional(),
+  input: z.record(z.string(), z.unknown()).optional(),
   nodes: z.array(z.object({
     id: z.string(),
     type: z.string(),
@@ -31,6 +33,19 @@ export const ConfigSchema = z.object({
   flows: z.array(z.object({ id: z.string().optional(), file: z.string() })).default([]),
   /** Chat and webhook entry points. Each is validated by @loage/channels when the server starts. */
   channels: z.array(z.looseObject({ id: z.string(), type: z.string(), flow: z.string() })).default([]),
+  /** Other MCP servers that `mcp` nodes can call (Streamable HTTP). */
+  mcpServers: z.array(z.object({ id: z.string(), url: z.string(), headers: z.record(z.string(), z.string()).default({}) })).default([]),
+  /** The `loage-mcp` server. Nothing is exposed unless listed in `expose`. */
+  mcp: z.object({
+    /** Flow ids exposed as MCP tools. */
+    expose: z.array(z.string()).default([]),
+    transport: z.enum(["stdio", "http"]).default("stdio"),
+    port: z.number().int().default(8090),
+    host: z.string().default("0.0.0.0"),
+    auth: z.object({ tokens: z.array(z.string()).default([]) }).default({ tokens: [] }),
+    runTimeoutMs: z.number().positive().default(60_000),
+    maxConcurrentRuns: z.number().int().positive().default(64),
+  }).default({ expose: [], transport: "stdio", port: 8090, host: "0.0.0.0", auth: { tokens: [] }, runTimeoutMs: 60_000, maxConcurrentRuns: 64 }),
   server: z.object({
     port: z.number().int().default(8080),
     auth: z.object({ tokens: z.array(z.string()).default([]) }).default({ tokens: [] }),
