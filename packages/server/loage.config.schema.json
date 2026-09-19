@@ -83,6 +83,30 @@
         "additionalProperties": false
       }
     },
+    "channels": {
+      "default": [],
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "flow": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "flow"
+        ],
+        "additionalProperties": {}
+      }
+    },
     "server": {
       "default": {
         "port": 8080,
@@ -151,6 +175,7 @@
   "required": [
     "providers",
     "flows",
+    "channels",
     "server"
   ],
   "additionalProperties": false

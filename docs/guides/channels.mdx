@@ -1,0 +1,107 @@
+---
+title: "Channels"
+description: "Run flows from Slack, Telegram or a signed webhook."
+---
+
+A channel is an entry point that turns an incoming message into a run of one flow and sends the flow's output back to the sender. You declare channels in the `channels` block of the [config file](/reference/config). Each channel names exactly one flow.
+
+Channels can trigger flows that control real devices, so they are closed by default:
+
+- Slack and Telegram channels need an `allow` list of user ids. The server refuses to start if it is missing or empty. Messages from anyone else are ignored without a reply.
+- Webhook channels need a `secret` of at least 16 characters, and every request must be signed.
+
+## What the flow receives
+
+Slack and Telegram messages reach the flow as this run input:
+
+| Field | Value |
+| --- | --- |
+| `text` | The message text. Slack mentions are removed. |
+| `user` | The sender's Slack or Telegram user id. |
+| `conversation` | The Slack channel id or Telegram chat id. |
+| `channel` | `slack` or `telegram`. |
+
+The reply is the `output` of the flow's [output node](/nodes/reference). If the flow fails, the sender gets "Sorry, something went wrong." and the details go to the server log only. Replies are cut at 3800 characters.
+
+Messages that Slack or Telegram redeliver are dropped, and a channel runs at most four flows at once. Extra messages get "Busy, try again shortly."
+
+```yaml
+channels:
+  - id: home-slack
+    type: slack
+    flow: home
+    appToken: "${SLACK_APP_TOKEN}"
+    botToken: "${SLACK_BOT_TOKEN}"
+    allow: ["U024BE7LH"]
+  - id: home-telegram
+    type: telegram
+    flow: home
+    botToken: "${TELEGRAM_BOT_TOKEN}"
+    allow: ["123456789"]
+  - id: crm-hook
+    type: webhook
+    flow: triage
+    secret: "${CRM_WEBHOOK_SECRET}"
+```
+
+## Slack
+
+Loage connects to Slack with Socket Mode. It opens an outbound WebSocket, so the server needs no public URL and works behind a home router. Loage reconnects with backoff when the connection drops.
+
+<Steps>
+  <Step title="Create the app">
+    Create a Slack app and turn on Socket Mode.
+  </Step>
+  <Step title="Create an app-level token">
+    Generate an app-level token with the `connections:write` scope. It starts with `xapp-`. This is `appToken`.
+  </Step>
+  <Step title="Add bot scopes and events">
+    Add the bot scopes `chat:write`, `app_mentions:read` and `im:history`. Subscribe to the bot events `app_mention` and `message.im`.
+  </Step>
+  <Step title="Install and copy the bot token">
+    Install the app to your workspace. The bot token starts with `xoxb-`. This is `botToken`.
+  </Step>
+</Steps>
+
+Loage answers direct messages and @mentions. In channels it replies in the thread of the mention. Set `allow` to Slack member ids, which start with `U`.
+
+## Telegram
+
+Loage polls the Bot API with `getUpdates`. It needs no public URL and no inbound port.
+
+1. Message `@BotFather`, create a bot and copy the token into `botToken`.
+2. Find your numeric user id, for example by messaging a bot such as `@userinfobot`, and put it in `allow`.
+
+Loage does not write the bot token to its logs.
+
+## Webhook
+
+A webhook channel is served by the HTTP server at `POST /hooks/<id>`. It uses its own signature instead of the bearer tokens of the `/v1` API.
+
+The caller sends two headers:
+
+- `x-loage-timestamp`: the current Unix time in seconds. Requests more than five minutes off are rejected, which limits replay.
+- `x-loage-signature`: `sha256=` followed by the hex HMAC-SHA256 of `<timestamp>.<raw body>` with your secret.
+
+The JSON body must be an object. It becomes the flow input as it is, and the response carries the flow output.
+
+```bash
+BODY='{"text": "My invoice is wrong"}'
+TS=$(date +%s)
+SIG=$(printf '%s.%s' "$TS" "$BODY" | openssl dgst -sha256 -hmac "$CRM_WEBHOOK_SECRET" | awk '{print $NF}')
+
+curl -s localhost:8080/hooks/crm-hook \
+  -H "x-loage-timestamp: $TS" \
+  -H "x-loage-signature: sha256=$SIG" \
+  -d "$BODY"
+```
+
+```json
+{ "ok": true, "runId": "5c1f...", "output": "Route to billing." }
+```
+
+A bad or missing signature returns `401`. A body that is not a JSON object returns `400`.
+
+<Note>
+  The webhook is exposed by the same server as the API. Put the server behind HTTPS if the sender is on the internet.
+</Note>

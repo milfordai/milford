@@ -32,6 +32,7 @@ server:
 
 <ParamField body="providers" type="object[]">List of [providers](/providers/overview). Each needs `id` and `type`. Other keys depend on the type.</ParamField>
 <ParamField body="flows" type="object[]">List of `{ file, id? }`. `file` is a flow JSON path relative to the config file. `id` overrides the id inside the file.</ParamField>
+<ParamField body="channels" type="object[]">List of [channels](/guides/channels). Each needs `id`, `type` (`slack`, `telegram` or `webhook`) and `flow`. Slack and Telegram channels also need an `allow` list. Webhook channels need a `secret`.</ParamField>
 <ParamField body="server.port" type="number" default="8080">Listen port.</ParamField>
 <ParamField body="server.auth.tokens" type="string[]" default="[]">Accepted bearer tokens. With none configured, the API is open and the server logs a warning.</ParamField>
 <ParamField body="server.runTimeoutMs" type="number" default="60000">Per-run timeout in milliseconds. The timeout aborts every in-flight `fetch` and provider call of the run.</ParamField>

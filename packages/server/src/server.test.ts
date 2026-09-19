@@ -1,4 +1,6 @@
+import { createChannels } from "@loage/channels";
 import { createEngine, defaultRegistry, type Provider } from "@loage/core";
+import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { createApp } from "./app.js";
 import { parseConfig } from "./config.js";
@@ -106,5 +108,30 @@ describe("server", () => {
     const text = await res.text();
     expect(res.headers.get("content-type")).toContain("text/event-stream");
     expect([...text.matchAll(/^event: (.+)$/gm)].map((m) => m[1])).toEqual(["node:start", "node:done", "node:start", "node:done", "result"]);
+  });
+});
+
+describe("webhook channels", () => {
+  const secret = "0123456789abcdef";
+  const engine = createEngine({ registry: defaultRegistry(), flows: [JSON.parse(flowJson)] });
+  if (!engine.ok) throw new Error(engine.error);
+  const chs = createChannels([{ id: "w", type: "webhook", flow: "hello", secret }], { engine: engine.value, log: () => {} });
+  if (!chs.ok) throw new Error(chs.error);
+  const app = createApp({ engine: engine.value, tokens: ["bearer"], channels: chs.value, log: () => {} });
+  const signed = (body: string, key = secret) => {
+    const ts = String(Math.floor(Date.now() / 1000));
+    return { "x-loage-timestamp": ts, "x-loage-signature": `sha256=${createHmac("sha256", key).update(`${ts}.${body}`).digest("hex")}` };
+  };
+
+  it("accepts a signed request without a bearer token, and rejects a bad one", async () => {
+    const body = JSON.stringify({ name: "Ann" });
+    const ok = await app.request("/hooks/w", { method: "POST", body, headers: signed(body) });
+    expect(ok.status).toBe(200);
+    expect((await ok.json()).output).toBe("Hello Ann");
+    expect((await app.request("/hooks/w", { method: "POST", body, headers: signed(body, "wrong-secret-value!") })).status).toBe(401);
+  });
+  it("404s unknown hooks and still guards /v1", async () => {
+    expect((await app.request("/hooks/nope", { method: "POST", body: "{}" })).status).toBe(404);
+    expect((await app.request("/v1/flows")).status).toBe(401);
   });
 });

@@ -1,4 +1,5 @@
 import { createHash, timingSafeEqual } from "node:crypto";
+import type { Channel } from "@loage/channels";
 import type { Engine } from "@loage/core";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
@@ -12,17 +13,25 @@ export type AppOptions = {
   runTimeoutMs?: number;
   maxConcurrentRuns?: number;
   maxBodyBytes?: number;
+  /** Channels with a `handle` are mounted at POST /hooks/:id. */
+  channels?: Channel[];
   /** One JSON line per finished run. Defaults to stdout; pass a no-op to silence. */
   log?: (line: string) => void;
 };
 
 /** HTTP surface over an Engine. */
-export function createApp({ engine, tokens = [], runTimeoutMs, maxConcurrentRuns = 64, maxBodyBytes = 1_000_000, log = console.log }: AppOptions): Hono {
+export function createApp({ engine, tokens = [], runTimeoutMs, maxConcurrentRuns = 64, maxBodyBytes = 1_000_000, channels = [], log = console.log }: AppOptions): Hono {
   const app = new Hono();
   let active = 0;
   app.onError((err, c) => {
     log(JSON.stringify({ level: "error", msg: "unhandled", error: err.message }));
     return c.json({ error: "internal error" }, 500);
+  });
+  // Webhooks authenticate with their own signature, not the bearer tokens.
+  app.use("/hooks/*", bodyLimit({ maxSize: maxBodyBytes, onError: (c) => c.json({ error: "body too large" }, 413) }));
+  app.post("/hooks/:id", async (c) => {
+    const ch = channels.find((x) => x.id === c.req.param("id") && x.handle);
+    return ch ? await ch.handle!(c.req.raw) : c.json({ error: "unknown webhook" }, 404);
   });
   app.use("/v1/*", bodyLimit({ maxSize: maxBodyBytes, onError: (c) => c.json({ error: "body too large" }, 413) }));
   app.get("/health", (c) => c.json({ status: "ok" }));
