@@ -115,6 +115,7 @@
         },
         "runTimeoutMs": 60000,
         "maxConcurrentRuns": 64,
+        "idempotencyTtlMs": 600000,
         "maxBodyBytes": 1000000
       },
       "type": "object",
@@ -155,6 +156,11 @@
           "exclusiveMinimum": 0,
           "maximum": 9007199254740991
         },
+        "idempotencyTtlMs": {
+          "default": 600000,
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
         "maxBodyBytes": {
           "default": 1000000,
           "type": "integer",
@@ -167,6 +173,7 @@
         "auth",
         "runTimeoutMs",
         "maxConcurrentRuns",
+        "idempotencyTtlMs",
         "maxBodyBytes"
       ],
       "additionalProperties": false

@@ -38,9 +38,11 @@ export const ConfigSchema = z.object({
     runTimeoutMs: z.number().positive().default(60_000),
     /** Runs allowed at once; more get 503 with Retry-After. */
     maxConcurrentRuns: z.number().int().positive().default(64),
+    /** How long a completed run is kept for `Idempotency-Key` replays. */
+    idempotencyTtlMs: z.number().positive().default(600_000),
     /** Largest accepted request body. */
     maxBodyBytes: z.number().int().positive().default(1_000_000),
-  }).default({ port: 8080, auth: { tokens: [] }, runTimeoutMs: 60_000, maxConcurrentRuns: 64, maxBodyBytes: 1_000_000 }),
+  }).default({ port: 8080, auth: { tokens: [] }, runTimeoutMs: 60_000, maxConcurrentRuns: 64, idempotencyTtlMs: 600_000, maxBodyBytes: 1_000_000 }),
 });
 export type Config = z.infer<typeof ConfigSchema>;
 

@@ -32,7 +32,8 @@
         "group": "Guides",
         "pages": [
           "guides/home-automation",
-          "guides/channels"
+          "guides/channels",
+          "guides/enterprise-integration"
         ]
       },
       {
@@ -41,6 +42,16 @@
           "reference/config",
           "reference/http-api",
           "reference/deployment"
+        ]
+      },
+      {
+        "group": "API reference",
+        "openapi": "openapi.yaml",
+        "pages": [
+          "GET /health",
+          "GET /v1/flows",
+          "POST /v1/flows/{id}/run",
+          "POST /hooks/{id}"
         ]
       }
     ]

@@ -21,7 +21,7 @@ const channels = createChannels(config.channels, { engine: eng, log: console.log
 if (!channels.ok) die(channels.error);
 const chs = (channels as Extract<typeof channels, { ok: true }>).value;
 
-const app = createApp({ engine: eng, channels: chs, tokens: config.server.auth.tokens, runTimeoutMs: config.server.runTimeoutMs, maxConcurrentRuns: config.server.maxConcurrentRuns, maxBodyBytes: config.server.maxBodyBytes });
+const app = createApp({ engine: eng, channels: chs, tokens: config.server.auth.tokens, runTimeoutMs: config.server.runTimeoutMs, maxConcurrentRuns: config.server.maxConcurrentRuns, maxBodyBytes: config.server.maxBodyBytes, idempotencyTtlMs: config.server.idempotencyTtlMs });
 if (!config.server.auth.tokens.length) console.warn("loage: no auth tokens configured, the API is open");
 const server = serve({ fetch: app.fetch, port: config.server.port }, (i) => console.log(`loage: ${flows.length} flow(s), ${chs.length} channel(s), listening on :${i.port}`));
 for (const ch of chs) await ch.start();
