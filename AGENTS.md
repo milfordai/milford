@@ -28,3 +28,10 @@ Milford is a headless intelligent workflow engine: a TypeScript core library plu
 - Every user-visible change (node, provider, config key, endpoint, CLI flag) needs a matching pull request in `milfordai/docs`. Link the two pull requests, and merge the code first.
 - `packages/server/openapi.yaml` is the source of truth for the HTTP API and stays here. A server test fails when a route is missing from it. The docs repository gets a copy at release time.
 - Docs style and the Mintlify workflow are in the docs repository's `AGENTS.md`.
+
+## Linear feedback
+- When you need Iwan's feedback, mention `@iwandejong` in a comment on the Linear issue. That means a decision, a review, an answer to a question, a blocker, or a request to confirm something you assumed.
+- Say what you need in the first line of the comment, then the options with a recommendation. One comment per question.
+- Mention `@iwandejong` in an issue description too when the "Decision needed" section still has open questions.
+- Do not mention `@iwandejong` for a plain progress note or a finished task with nothing to confirm. Set the issue status and comment without the mention.
+- Do not guess a decision that is Iwan's to make. Ask, and keep working on what does not depend on the answer.
