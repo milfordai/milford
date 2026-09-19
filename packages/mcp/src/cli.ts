@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-import { loadConfig } from "@milford/config";
-import { createEngine, defaultRegistry } from "@milford/core";
-import { registerProviders } from "@milford/providers";
+import { loadConfig } from "@milfordai/config";
+import { createEngine, defaultRegistry } from "@milfordai/core";
+import { registerProviders } from "@milfordai/providers";
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import { registerMcp } from "./egress.js";
 import { serveHttp } from "./http.js";

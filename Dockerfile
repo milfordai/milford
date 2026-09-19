@@ -5,8 +5,8 @@ WORKDIR /repo
 COPY . .
 RUN pnpm install --frozen-lockfile \
  && pnpm build \
- && pnpm --filter @milford/server deploy --prod --legacy /out \
- && pnpm --filter @milford/mcp deploy --prod --legacy /out-mcp
+ && pnpm --filter @milfordai/server deploy --prod --legacy /out \
+ && pnpm --filter @milfordai/mcp deploy --prod --legacy /out-mcp
 
 # `docker build --target mcp .` builds the MCP server. It needs `mcp.transport: http` in the config.
 FROM node:22-alpine AS mcp

@@ -1,4 +1,4 @@
-import type { Engine } from "@milford/core";
+import type { Engine } from "@milfordai/core";
 
 export type Log = (line: string) => void;
 

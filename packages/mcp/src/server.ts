@@ -1,4 +1,4 @@
-import type { Engine, Result } from "@milford/core";
+import type { Engine, Result } from "@milfordai/core";
 import { fromJsonSchema, McpServer } from "@modelcontextprotocol/server";
 
 export type McpOptions = {

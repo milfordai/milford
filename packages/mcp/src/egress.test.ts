@@ -1,4 +1,4 @@
-import { createEngine, defaultRegistry, flow, type Flow } from "@milford/core";
+import { createEngine, defaultRegistry, flow, type Flow } from "@milfordai/core";
 import { afterEach, describe, expect, it } from "vitest";
 import { registerMcp } from "./egress.js";
 import { serveHttp } from "./http.js";

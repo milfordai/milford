@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { TOO_MANY_RUNS } from "@milford/core";
+import { TOO_MANY_RUNS } from "@milfordai/core";
 import { z } from "zod";
 import type { Channel, ChannelDeps } from "./types.js";
 

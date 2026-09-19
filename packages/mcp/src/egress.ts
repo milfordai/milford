@@ -1,4 +1,4 @@
-import { render, renderDeep, scopeOf, type NodeDef, type Registry } from "@milford/core";
+import { render, renderDeep, scopeOf, type NodeDef, type Registry } from "@milfordai/core";
 import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
 import { z } from "zod";
 

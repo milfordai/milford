@@ -1,5 +1,5 @@
 {
-  "name": "@milford/config",
+  "name": "@milfordai/config",
   "version": "0.0.1",
   "type": "module",
   "main": "dist/index.js",
@@ -14,7 +14,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@milford/core": "workspace:*",
+    "@milfordai/core": "workspace:*",
     "yaml": "^2.9.1",
     "zod": "^4.6.5"
   },

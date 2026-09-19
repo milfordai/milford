@@ -1,11 +1,11 @@
-import { createChannels } from "@milford/channels";
-import { createEngine, defaultRegistry, type Provider } from "@milford/core";
+import { createChannels } from "@milfordai/channels";
+import { createEngine, defaultRegistry, type Provider } from "@milfordai/core";
 import { createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { parse } from "yaml";
 import { describe, expect, it } from "vitest";
 import { createApp } from "./app.js";
-import { parseConfig } from "@milford/config";
+import { parseConfig } from "@milfordai/config";
 
 const yaml = `
 providers:

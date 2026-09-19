@@ -1,4 +1,4 @@
-import type { DecideRequest, Decision, Result } from "@milford/core";
+import type { DecideRequest, Decision, Result } from "@milfordai/core";
 
 export const err = (error: string): { ok: false; error: string } => ({ ok: false, error });
 

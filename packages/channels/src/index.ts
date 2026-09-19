@@ -1,4 +1,4 @@
-import type { Result } from "@milford/core";
+import type { Result } from "@milfordai/core";
 import { z } from "zod";
 import { slack, slackConfig } from "./slack.js";
 import { telegram, telegramConfig } from "./telegram.js";

@@ -1,4 +1,4 @@
-import { TOO_MANY_RUNS, type Engine } from "@milford/core";
+import { TOO_MANY_RUNS, type Engine } from "@milfordai/core";
 import type { InboundMessage, Log } from "./types.js";
 
 const MAX_REPLY = 3800; // below Telegram's 4096 and Slack's recommended 4000 characters
