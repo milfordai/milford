@@ -6,7 +6,7 @@
 
 [![CI](https://github.com/milfordai/milford/actions/workflows/ci.yml/badge.svg)](https://github.com/milfordai/milford/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/milfordai/milford)](https://github.com/milfordai/milford/releases)
-[![Docs](https://img.shields.io/badge/docs-loage.mintlify.site-16A34A)](https://loage.mintlify.site)
+[![Docs](https://img.shields.io/badge/docs-loage.mintlify.site-007DCC)](https://loage.mintlify.site)
 [![License](https://img.shields.io/github/license/milfordai/milford)](LICENSE)
 
 ## Intelligent workflows as code: typed decisions, model calls and HTTP calls in a graph
@@ -94,6 +94,12 @@ flowchart LR
   E["Engine<br/>compile once, run many"] --> F["Providers<br/>OpenAI-compatible, Anthropic,<br/>Jev, HTTP classifier"]
   E --> G["http node<br/>any REST API"]
   E --> H["mcp node<br/>other MCP servers"]
+  classDef entry fill:#007DCC,stroke:#007DCC,color:#fff
+  classDef engine fill:#D10056,stroke:#D10056,color:#fff
+  classDef target fill:#FFB900,stroke:#FFB900,color:#1c1c1c
+  class A,B,C,D entry
+  class E engine
+  class F,G,H target
 ```
 
 A flow is a graph. Nodes in the same level run in parallel, `when` conditions on edges skip untaken branches, and a failed branch does not stop the others. This is the triage flow from the Quick Start:
@@ -109,6 +115,12 @@ flowchart LR
   technical --> out
   sales --> out
   human --> out
+  classDef edge fill:#007DCC,stroke:#007DCC,color:#fff
+  classDef decide fill:#FFB900,stroke:#FFB900,color:#1c1c1c
+  classDef stop fill:#D10056,stroke:#D10056,color:#fff
+  class in,out edge
+  class team decide
+  class human stop
 ```
 
 Every run returns a trace. This is the `category` decision of the [error-classification example](https://github.com/milfordai/examples/tree/main/error-classification), with a stand-in provider:
