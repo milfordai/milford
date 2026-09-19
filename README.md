@@ -5,6 +5,7 @@
 # Milford
 
 [![CI](https://github.com/milfordai/milford/actions/workflows/ci.yml/badge.svg)](https://github.com/milfordai/milford/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@milfordai/core?color=007DCC&label=npm)](https://www.npmjs.com/package/@milfordai/core)
 [![Release](https://img.shields.io/github/v/release/milfordai/milford)](https://github.com/milfordai/milford/releases)
 [![Docs](https://img.shields.io/badge/docs-milford.mintlify.site-007DCC)](https://milford.mintlify.site)
 [![License](https://img.shields.io/github/license/milfordai/milford)](LICENSE)
@@ -19,24 +20,43 @@ It is not an agent framework. A flow is a fixed graph with no agent loop, so you
 
 ## Quick Start
 
-**Go from a clone to a running flow in a minute. No API key needed.**
+**Go from nothing to a running flow in a minute. No API key needed.** You need Node.js 22 or later.
 
-**Step 1:** Start Milford
+**Step 1:** Create a config and a flow
 
-```bash
-git clone https://github.com/milfordai/milford && cd milford
-docker build -t milford .
-docker run -p 8080:8080 -e MILFORD_TOKEN=change-me -v "$PWD/examples/quickstart:/config:ro" milford
+Save this as `milford.config.yaml`:
+
+```yaml
+flows:
+  - { file: ./flows/hello.json }
+server:
+  port: 8080
+  auth: { tokens: ["${MILFORD_TOKEN}"] }
 ```
 
-Without Docker, use Node 22 and pnpm:
+Save this as `flows/hello.json`:
 
-```bash
-pnpm install && pnpm build
-MILFORD_TOKEN=change-me node packages/server/dist/cli.js examples/quickstart/milford.config.yaml
+```json
+{
+  "id": "hello",
+  "nodes": [
+    { "id": "in", "type": "input" },
+    { "id": "greet", "type": "prompt", "config": { "template": "Hello {{input.name}}!" } },
+    { "id": "out", "type": "output" }
+  ],
+  "edges": [{ "from": "in", "to": "greet" }, { "from": "greet", "to": "out" }]
+}
 ```
 
-**Step 2:** Run a flow
+**Step 2:** Start Milford
+
+```bash
+MILFORD_TOKEN=change-me npx @milfordai/server milford.config.yaml
+# or with pnpm
+MILFORD_TOKEN=change-me pnpm dlx @milfordai/server milford.config.yaml
+```
+
+**Step 3:** Run a flow
 
 ```bash
 curl -s localhost:8080/v1/flows/hello/run \
@@ -46,7 +66,7 @@ curl -s localhost:8080/v1/flows/hello/run \
 
 The response holds the result of every node and the flow `output`, here `"Hello Ann!"`.
 
-**Step 3:** Add a model
+**Step 4:** Add a model
 
 A `decision` node asks a provider a typed question and returns a value you can branch on. Add a provider to `milford.config.yaml`:
 
@@ -72,6 +92,47 @@ Then use it in a flow. Edges with `when` route on the answer, and a low-confiden
 The complete flow is `flows/triage.json` in the examples. Switching the provider to an OpenAI-compatible server or a local classifier is a config change, and the flow stays the same.
 
 **That's it!** Your flow runs behind an authenticated API with streaming, idempotent retries and run limits.
+
+<details>
+<summary>Prefer Docker, or want to run from a clone?</summary>
+
+```bash
+git clone https://github.com/milfordai/milford && cd milford
+docker build -t milford .
+docker run -p 8080:8080 -e MILFORD_TOKEN=change-me -v "$PWD/examples/quickstart:/config:ro" milford
+```
+
+Without Docker, use Node 22 and pnpm:
+
+```bash
+pnpm install && pnpm build
+MILFORD_TOKEN=change-me node packages/server/dist/cli.js examples/quickstart/milford.config.yaml
+```
+
+</details>
+
+
+---
+
+## Install
+
+```bash
+npm install @milfordai/core @milfordai/providers      # the library
+npm install --global @milfordai/server @milfordai/mcp # the milford-server and milford-mcp commands
+```
+
+With pnpm, use `pnpm add` and `pnpm add --global`. The packages need Node.js 22 or later and are released together, so keep every `@milfordai/*` dependency on the same version.
+
+| Package | What it is |
+| --- | --- |
+| [`@milfordai/server`](https://www.npmjs.com/package/@milfordai/server) | The HTTP server and the `milford-server` command. Includes Slack, Telegram and webhook channels. |
+| [`@milfordai/mcp`](https://www.npmjs.com/package/@milfordai/mcp) | The MCP server, the `milford-mcp` command and the `mcp` node. |
+| [`@milfordai/core`](https://www.npmjs.com/package/@milfordai/core) | The engine: flows, nodes and the provider port. No I/O. |
+| [`@milfordai/providers`](https://www.npmjs.com/package/@milfordai/providers) | OpenAI-compatible, Anthropic, Jev and HTTP provider adapters. |
+| [`@milfordai/config`](https://www.npmjs.com/package/@milfordai/config) | The config loader and the JSON Schema of the config file. |
+| [`@milfordai/channels`](https://www.npmjs.com/package/@milfordai/channels) | The Slack, Telegram and webhook adapters. |
+
+See [installation](https://milford.mintlify.site/installation) for global installs, Docker and editor completion.
 
 ---
 
@@ -213,7 +274,7 @@ LLM-backed decisions report the model's own confidence estimate, not a calibrate
 **Best for:** any language or framework calling flows over REST.
 
 ```bash
-node packages/server/dist/cli.js milford.config.yaml
+npx @milfordai/server milford.config.yaml
 ```
 
 An [OpenAPI 3.1 spec](packages/server/openapi.yaml) describes the API, so you can generate a client for Java, .NET, Python or Go.
@@ -230,7 +291,7 @@ mcp:
 ```
 
 ```bash
-node packages/mcp/dist/cli.js milford.config.yaml
+npx @milfordai/mcp milford.config.yaml
 claude mcp add --transport http milford http://localhost:8090/mcp \
   --header "Authorization: Bearer $MILFORD_MCP_TOKEN"
 ```
