@@ -56,6 +56,8 @@ MILFORD_TOKEN=change-me npx @milfordai/server milford.config.yaml
 MILFORD_TOKEN=change-me pnpm dlx @milfordai/server milford.config.yaml
 ```
 
+To check a config and its flows without starting the server (for example in CI), run `npx @milfordai/server validate milford.config.yaml`. It exits non-zero on any error.
+
 **Step 3:** Run a flow
 
 ```bash
