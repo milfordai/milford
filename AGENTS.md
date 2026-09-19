@@ -18,6 +18,7 @@ Milford is a headless intelligent workflow engine: a TypeScript core library plu
 - Long-lived branches: `main` (releases only, tagged) and `dev` (integration).
 - Work happens on `feature/<name>` branched from `dev`, merged back into `dev` with `--no-ff` (or a PR).
 - `release/<version>` branches from `dev`, merges into `main` and back into `dev`, tagged `v<version>`.
+- Each release adds an entry to `changelog.mdx` in `milfordai/docs` (draft it from the `feat:` and `fix:` commits since the last tag, then edit by hand).
 - `hotfix/<name>` branches from `main`, merges into `main` and `dev`.
 - Never commit directly to `main` or `dev`. Conventional commit messages (`feat:`, `fix:`, `docs:`, `chore:`).
 - A user-visible change also needs a docs change: open a matching pull request in `milfordai/docs` and link the two (see Documentation).
