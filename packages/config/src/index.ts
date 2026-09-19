@@ -43,21 +43,22 @@ export const ConfigSchema = z.object({
     port: z.number().int().default(8090),
     host: z.string().default("0.0.0.0"),
     auth: z.object({ tokens: z.array(z.string()).default([]) }).default({ tokens: [] }),
-    runTimeoutMs: z.number().positive().default(60_000),
+  }).default({ expose: [], transport: "stdio", port: 8090, host: "0.0.0.0", auth: { tokens: [] } }),
+  /** Limits shared by the HTTP server, the MCP server and the channels. */
+  run: z.object({
+    /** Per-run timeout in milliseconds. */
+    timeoutMs: z.number().positive().default(60_000),
+    /** Runs allowed at once. Further runs are rejected. */
     maxConcurrentRuns: z.number().int().positive().default(64),
-  }).default({ expose: [], transport: "stdio", port: 8090, host: "0.0.0.0", auth: { tokens: [] }, runTimeoutMs: 60_000, maxConcurrentRuns: 64 }),
+  }).default({ timeoutMs: 60_000, maxConcurrentRuns: 64 }),
   server: z.object({
     port: z.number().int().default(8080),
     auth: z.object({ tokens: z.array(z.string()).default([]) }).default({ tokens: [] }),
-    /** Per-run timeout in milliseconds. */
-    runTimeoutMs: z.number().positive().default(60_000),
-    /** Runs allowed at once; more get 503 with Retry-After. */
-    maxConcurrentRuns: z.number().int().positive().default(64),
     /** How long a completed run is kept for `Idempotency-Key` replays. */
     idempotencyTtlMs: z.number().positive().default(600_000),
     /** Largest accepted request body. */
     maxBodyBytes: z.number().int().positive().default(1_000_000),
-  }).default({ port: 8080, auth: { tokens: [] }, runTimeoutMs: 60_000, maxConcurrentRuns: 64, idempotencyTtlMs: 600_000, maxBodyBytes: 1_000_000 }),
+  }).default({ port: 8080, auth: { tokens: [] }, idempotencyTtlMs: 600_000, maxBodyBytes: 1_000_000 }),
 });
 export type Config = z.infer<typeof ConfigSchema>;
 

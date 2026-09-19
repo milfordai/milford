@@ -54,7 +54,7 @@ class LoageClient {
 
     LoageClient(@Value("${loage.url}") String url, @Value("${loage.token}") String token) {
         var factory = new JdkClientHttpRequestFactory();
-        factory.setReadTimeout(Duration.ofSeconds(40)); // longer than server.runTimeoutMs
+        factory.setReadTimeout(Duration.ofSeconds(40)); // longer than run.timeoutMs
         this.http = RestClient.builder()
             .baseUrl(url)
             .requestFactory(factory)
@@ -108,7 +108,7 @@ Queues deliver at least once, and every run can cost model calls. Send an `Idemp
 
 Run Loage as a central service with two or more replicas, or as a sidecar next to a service that needs low latency. Loage is stateless apart from the idempotency results, circuit breaker state and rate limits, which each replica keeps in memory. See [deployment](/reference/deployment).
 
-Set `server.runTimeoutMs`, `server.maxConcurrentRuns` and the provider `circuitBreaker` and `rateLimit` values for your traffic. A `503` response includes `Retry-After`. Your client should back off and retry with the same idempotency key.
+Set `run.timeoutMs`, `run.maxConcurrentRuns` and the provider `circuitBreaker` and `rateLimit` values for your traffic. A `503` response includes `Retry-After`. Your client should back off and retry with the same idempotency key.
 
 ## Choose where the data goes
 

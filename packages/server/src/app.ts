@@ -1,6 +1,6 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import type { Channel } from "@loage/channels";
-import type { Engine, RunResult } from "@loage/core";
+import { TOO_MANY_RUNS, type Engine, type RunResult } from "@loage/core";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { streamSSE } from "hono/streaming";
@@ -11,8 +11,6 @@ const digest = (s: string) => createHash("sha256").update(s).digest();
 export type AppOptions = {
   engine: Engine;
   tokens?: string[];
-  runTimeoutMs?: number;
-  maxConcurrentRuns?: number;
   maxBodyBytes?: number;
   /** How long a completed run is kept for `Idempotency-Key` replays. */
   idempotencyTtlMs?: number;
@@ -23,9 +21,8 @@ export type AppOptions = {
 };
 
 /** HTTP surface over an Engine. */
-export function createApp({ engine, tokens = [], runTimeoutMs, maxConcurrentRuns = 64, maxBodyBytes = 1_000_000, idempotencyTtlMs = 600_000, channels = [], log = console.log }: AppOptions): Hono {
+export function createApp({ engine, tokens = [], maxBodyBytes = 1_000_000, idempotencyTtlMs = 600_000, channels = [], log = console.log }: AppOptions): Hono {
   const app = new Hono();
-  let active = 0;
   const idempotent = createIdempotencyStore<RunResult>(idempotencyTtlMs);
   app.onError((err, c) => {
     log(JSON.stringify({ level: "error", msg: "unhandled", error: err.message }));
@@ -76,40 +73,32 @@ export function createApp({ engine, tokens = [], runTimeoutMs, maxConcurrentRuns
         if (replay) return c.json(replay, 200, { "idempotent-replayed": "true" });
       }
     }
-    if (active >= maxConcurrentRuns) return c.json({ error: "too many concurrent runs" }, 503, { "retry-after": "1" });
-    const opts = { timeoutMs: runTimeoutMs };
     const started = performance.now();
     const done = (ok: boolean, runId?: string) => log(JSON.stringify({ level: "info", msg: "run", flow: id, ok, runId, ms: Math.round(performance.now() - started) }));
 
     if (!sse) {
-      active++;
       const finish = ikey ? idempotent.begin(ikey, fingerprint) : undefined;
       let kept: RunResult | undefined;
       try {
-        const r = await engine.run(id, input, { ...opts, signal: c.req.raw.signal });
+        const r = await engine.run(id, input, { signal: c.req.raw.signal });
         done(r.ok && r.value.ok, r.ok ? r.value.runId : undefined);
         // Only successful runs are kept, so a retry after a failure runs again.
         if (r.ok && r.value.ok) kept = r.value;
-        return r.ok ? c.json(r.value) : c.json({ error: r.error }, 500);
+        if (r.ok) return c.json(r.value);
+        return r.error === TOO_MANY_RUNS ? c.json({ error: r.error }, 503, { "retry-after": "1" }) : c.json({ error: r.error }, 500);
       } finally {
         finish?.(kept);
-        active--;
       }
     }
     return streamSSE(c, async (stream) => {
-      active++;
       const abort = new AbortController();
       stream.onAbort(() => abort.abort());
       // A client that disconnected mid-run must not turn a failed write into an unhandled rejection.
       let writes: Promise<unknown> = Promise.resolve();
       const send = (event: string, data: unknown) => (writes = writes.then(() => stream.writeSSE({ event, data: JSON.stringify(data) })).catch(() => {}));
-      try {
-        const r = await engine.run(id, input, { ...opts, signal: abort.signal, onEvent: (e) => void send(e.type, e) });
-        done(r.ok && r.value.ok, r.ok ? r.value.runId : undefined);
-        await send("result", r.ok ? r.value : { error: r.error });
-      } finally {
-        active--;
-      }
+      const r = await engine.run(id, input, { signal: abort.signal, onEvent: (e) => void send(e.type, e) });
+      done(r.ok && r.value.ok, r.ok ? r.value.runId : undefined);
+      await send("result", r.ok ? r.value : { error: r.error });
     });
   });
   return app;

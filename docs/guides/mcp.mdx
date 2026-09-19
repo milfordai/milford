@@ -128,6 +128,6 @@ The graph stays fixed. A decision chooses among tools that you list, and nothing
 ## Limits
 
 - Tools only. Loage does not expose MCP resources or prompts, and the `mcp` node calls tools only.
-- A run is limited by `mcp.runTimeoutMs` (default 60 seconds), and `mcp.maxConcurrentRuns` (default 64) caps parallel calls. Extra calls get an error result.
+- Runs use the shared `run.timeoutMs` and `run.maxConcurrentRuns` limits. Calls over the cap get an error result.
 - Authentication is static bearer tokens. Put the server behind a gateway for OIDC or mutual TLS.
 - MCP calls have no idempotency key.

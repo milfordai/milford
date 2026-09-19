@@ -28,7 +28,7 @@ describe("server", () => {
   if (!cfg.ok) throw new Error(cfg.error);
   const engine = createEngine({ registry: defaultRegistry().registerProvider("fake", () => ({ ok: true, value: fake })), providers: cfg.value.providers, flows: cfg.value.flows });
   if (!engine.ok) throw new Error(engine.error);
-  const app = createApp({ engine: engine.value, tokens: ["secret"], log: () => {}, maxBodyBytes: 200, maxConcurrentRuns: 1 });
+  const app = createApp({ engine: engine.value, tokens: ["secret"], log: () => {}, maxBodyBytes: 200 });
   const auth = { authorization: "Bearer secret" };
   const post = (id: string, body: unknown, headers: Record<string, string> = {}) => app.request(`/v1/flows/${id}/run`, { method: "POST", headers: { ...auth, ...headers }, body: JSON.stringify(body) });
 
@@ -61,9 +61,10 @@ describe("server", () => {
     const slow = createEngine({
       registry: defaultRegistry().registerNode("slow", { run: async () => (await gate, { success: true }) }),
       flows: [{ id: "s", nodes: [{ id: "a", type: "slow" }], edges: [] }],
+      maxConcurrentRuns: 1,
     });
     if (!slow.ok) throw new Error(slow.error);
-    const a = createApp({ engine: slow.value, log: () => {}, maxConcurrentRuns: 1 });
+    const a = createApp({ engine: slow.value, log: () => {} });
     const first = a.request("/v1/flows/s/run", { method: "POST", body: "{}" });
     await new Promise((r) => setTimeout(r, 10));
     const second = await a.request("/v1/flows/s/run", { method: "POST", body: "{}" });

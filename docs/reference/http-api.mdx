@@ -34,7 +34,7 @@ Send an `Idempotency-Key` header to make retries safe. A retry with the same key
 
 ## Server-sent events
 
-Send `Accept: text/event-stream` to receive events as they happen. Each event name matches its `type`: `node:start`, `node:done`, `node:error`, `node:skipped`, `provider:call`. The last event is `result`, which holds the run result. Closing the connection cancels the run.
+Send `Accept: text/event-stream` to receive events as they happen. Each event name matches its `type`: `node:start`, `node:done`, `node:error`, `node:skipped`, `provider:call`. The last event is `result`, which holds the run result. If the server is busy, the stream ends with a `result` event that carries an `error`, because the HTTP status is already sent. Closing the connection cancels the run.
 
 ```bash
 curl -N localhost:8080/v1/flows/triage/run \

@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { TOO_MANY_RUNS } from "@loage/core";
 import { z } from "zod";
 import type { Channel, ChannelDeps } from "./types.js";
 
@@ -33,8 +34,8 @@ export function webhook(cfg: z.infer<typeof webhookConfig>, deps: ChannelDeps): 
         return json({ error: "body must be JSON" }, 400);
       }
       if (typeof input !== "object" || input === null || Array.isArray(input)) return json({ error: "body must be a JSON object" }, 400);
-      const r = await deps.engine.run(cfg.flow, input as Record<string, unknown>, { timeoutMs: deps.runTimeoutMs, signal: req.signal });
-      if (!r.ok) return json({ error: r.error }, 500);
+      const r = await deps.engine.run(cfg.flow, input as Record<string, unknown>, { signal: req.signal });
+      if (!r.ok) return json({ error: r.error }, r.error === TOO_MANY_RUNS ? 503 : 500);
       return json({ ok: r.value.ok, runId: r.value.runId, output: r.value.output?.output, data: r.value.output?.data });
     },
   };

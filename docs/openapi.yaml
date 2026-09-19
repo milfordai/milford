@@ -52,7 +52,8 @@ paths:
 
         Send `Accept: text/event-stream` to receive events while the run progresses. The event names are
         `node:start`, `node:done`, `node:error`, `node:skipped` and `provider:call`, and the last event is
-        `result` with the same body as the JSON response. Closing the connection cancels the run.
+        `result` with the same body as the JSON response. If the server is busy, the stream ends with a `result`
+        event that carries an `error` instead of an HTTP `503`. Closing the connection cancels the run.
 
         Send an `Idempotency-Key` to make retries safe. A retry with the same key and input returns the first
         successful result with the header `Idempotent-Replayed: true` instead of running the flow again.

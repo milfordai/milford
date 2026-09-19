@@ -3,7 +3,7 @@
 Loage is a headless intelligent workflow engine: a TypeScript core library plus a thin HTTP server, configured as code and deployed with Docker. It is not an agent framework (no LangChain, no agent loops). The full design lives in `.claude/PLAN.md` (local, gitignored); the summary below is what agents need day to day.
 
 ## Architecture rules
-- `packages/core` has zero I/O and zero vendor knowledge. It defines ports (`Provider`, `FlowSource`, `Clock`, `Logger`, `Cache`, `Ingress`, later `Transport`, `MessageBus`). Never import Jev/Typesafe, a vendor SDK or a broker client into core. CI fails on `typesafe`/`jev` in `packages/core`.
+- `packages/core` has zero I/O and zero vendor knowledge. It defines ports (`Provider`, `FlowSource`, `Clock`, `Logger`, `Cache`, later `Transport`, `MessageBus`). Never import Jev/Typesafe, a vendor SDK or a broker client into core. CI fails on `typesafe`/`jev` in `packages/core`.
 - Vendors are adapters in `packages/providers` (Jev is one adapter among several, never required).
 - Nodes and providers are registered by `type` (registry + strategy). No growing `switch`.
 - Nodes and providers return results (`{ok, value} | {ok: false, error}`), they do not throw.

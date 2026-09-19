@@ -4,8 +4,6 @@ import { fromJsonSchema, McpServer } from "@modelcontextprotocol/server";
 export type McpOptions = {
   /** Flow ids to expose as tools. Nothing is exposed by default. */
   expose: string[];
-  runTimeoutMs?: number;
-  maxConcurrentRuns?: number;
   /** One JSON line per tool call. Must not write to stdout when serving stdio. */
   log?: (line: string) => void;
 };
@@ -25,7 +23,6 @@ export function createMcpFactory(engine: Engine, o: McpOptions): Result<() => Mc
     if (!TOOL_NAME.test(id)) return { ok: false, error: `mcp.expose: flow id "${id}" is not a valid tool name (use letters, digits, _ - . up to 64 characters)` };
   }
   const log = o.log ?? console.error;
-  let active = 0; // shared across per-request servers
 
   const factory = () => {
     const server = new McpServer({ name: "loage", version: "0.0.0" });
@@ -38,20 +35,14 @@ export function createMcpFactory(engine: Engine, o: McpOptions): Result<() => Mc
         { description: flow.description ?? `Run the "${id}" flow.`, inputSchema },
         async (args, ctx) => {
           const text = (t: string) => ({ content: [{ type: "text" as const, text: t }], isError: true });
-          if (active >= (o.maxConcurrentRuns ?? 64)) return text("too many concurrent runs, retry shortly");
-          active++;
           const started = performance.now();
-          try {
-            const r = await engine.run(id, args ?? {}, { timeoutMs: o.runTimeoutMs, signal: ctx.mcpReq.signal });
-            if (!r.ok) return text(r.error);
-            const v = r.value;
-            const errors = Object.entries(v.nodes).filter(([, n]) => n.status === "error").map(([node, n]) => `${node}: ${n.result?.error ?? "failed"}`);
-            const out = { ok: v.ok, runId: v.runId, output: v.output?.output, data: v.output?.data, ...(errors.length && { errors }) };
-            log(JSON.stringify({ level: "info", msg: "mcp tool", flow: id, ok: v.ok, runId: v.runId, ms: Math.round(performance.now() - started) }));
-            return { content: [{ type: "text" as const, text: JSON.stringify(out) }], structuredContent: out, isError: !v.ok };
-          } finally {
-            active--;
-          }
+          const r = await engine.run(id, args ?? {}, { signal: ctx.mcpReq.signal });
+          if (!r.ok) return text(r.error);
+          const v = r.value;
+          const errors = Object.entries(v.nodes).filter(([, n]) => n.status === "error").map(([node, n]) => `${node}: ${n.result?.error ?? "failed"}`);
+          const out = { ok: v.ok, runId: v.runId, output: v.output?.output, data: v.output?.data, ...(errors.length && { errors }) };
+          log(JSON.stringify({ level: "info", msg: "mcp tool", flow: id, ok: v.ok, runId: v.runId, ms: Math.round(performance.now() - started) }));
+          return { content: [{ type: "text" as const, text: JSON.stringify(out) }], structuredContent: out, isError: !v.ok };
         },
       );
     }

@@ -1,4 +1,4 @@
-import { createEngine, defaultRegistry, type Flow } from "@loage/core";
+import { createEngine, defaultRegistry, type Engine, type Flow } from "@loage/core";
 import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
 import { createMcpHandler } from "@modelcontextprotocol/server";
 import { afterEach, describe, expect, it } from "vitest";
@@ -27,8 +27,8 @@ const registry = defaultRegistry()
 const engine = createEngine({ registry, flows });
 if (!engine.ok) throw new Error(engine.error);
 
-const factoryFor = (o: Partial<Parameters<typeof createMcpFactory>[1]> = {}) => {
-  const f = createMcpFactory(engine.value, { expose: ["shout", "boom", "slow"], log: () => {}, ...o });
+const factoryFor = (e: Engine = engine.value) => {
+  const f = createMcpFactory(e, { expose: ["shout", "boom", "slow"], log: () => {} });
   if (!f.ok) throw new Error(f.error);
   return f.value;
 };
@@ -93,7 +93,9 @@ describe("tools", () => {
   });
 
   it("sheds load when too many runs are active", async () => {
-    const client = await connect(factoryFor({ maxConcurrentRuns: 1 }));
+    const capped = createEngine({ registry, flows, maxConcurrentRuns: 1 });
+    if (!capped.ok) throw new Error(capped.error);
+    const client = await connect(factoryFor(capped.value));
     const first = client.callTool({ name: "slow", arguments: {} });
     await new Promise((r) => setTimeout(r, 30));
     const second = await client.callTool({ name: "slow", arguments: {} });

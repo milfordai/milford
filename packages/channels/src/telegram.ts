@@ -19,7 +19,7 @@ export function telegram(cfg: z.infer<typeof telegramConfig>, deps: ChannelDeps)
   const doFetch = deps.fetch ?? fetch;
   const log = deps.log ?? console.log;
   const stopCtl = new AbortController();
-  const handle = createHandler({ id: cfg.id, type: "telegram", engine: deps.engine, flow: cfg.flow, allow: cfg.allow, log, runTimeoutMs: deps.runTimeoutMs });
+  const handle = createHandler({ id: cfg.id, type: "telegram", engine: deps.engine, flow: cfg.flow, allow: cfg.allow, log });
   // The token is part of the URL, so errors must never echo it.
   const call = async (method: string, body: object, signal?: AbortSignal) => {
     const res = await doFetch(`https://api.telegram.org/bot${cfg.botToken}/${method}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body), signal });
