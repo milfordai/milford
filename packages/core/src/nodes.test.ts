@@ -61,6 +61,22 @@ describe("built-in nodes", () => {
     const r = await e.run("f");
     expect(r.ok && r.value.ok).toBe(false);
   });
+
+  it("http node retries a 5xx (infrastructure) under the default retry policy, but not a 4xx", async () => {
+    let fivexx = 0;
+    const flaky = (async () => (++fivexx < 3 ? new Response("nope", { status: 500 }) : new Response("ok", { status: 200 }))) as unknown as typeof globalThis.fetch;
+    const e5 = engineWith([], [flow("f").node("h", "http", { url: "http://x" }, { retry: { attempts: 3, backoffMs: 1 } }).node("out", "output").edge("h", "out")], flaky);
+    const r5 = await e5.run("f");
+    expect(r5.ok && r5.value.ok).toBe(true);
+    expect(fivexx).toBe(3);
+
+    let fourxx = 0;
+    const bad = (async () => { fourxx++; return new Response("nope", { status: 400 }); }) as unknown as typeof globalThis.fetch;
+    const e4 = engineWith([], [flow("f").node("h", "http", { url: "http://x" }, { retry: { attempts: 3, backoffMs: 1 } })], bad);
+    const r4 = await e4.run("f");
+    expect(r4.ok && r4.value.ok).toBe(false);
+    expect(fourxx).toBe(1);
+  });
 });
 
 describe("decision node", () => {

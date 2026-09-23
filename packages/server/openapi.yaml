@@ -131,12 +131,23 @@ paths:
         Send an `Idempotency-Key` to make retries safe. A retry with the same key and input returns the first
         successful result with the header `Idempotent-Replayed: true` instead of running the flow again.
         The header is ignored for event streams.
+
+        Send `X-Milford-Timeout-Ms` to bound this run from the default `server.run.timeoutMs` (60 seconds).
+        The run is aborted after that many milliseconds, for JSON and event-stream runs alike.
       parameters:
         - name: id
           in: path
           required: true
           description: Flow id.
           schema: { type: string }
+        - name: X-Milford-Timeout-Ms
+          in: header
+          required: false
+          description: |
+            Milliseconds after which this run is aborted, from 1 to 600000. Overrides the
+            `run.timeoutMs` served default (60 seconds) for this request only. Not a whole number,
+            below 1 or above 600000: `400`.
+          schema: { type: integer, minimum: 1, maximum: 600000 }
         - name: Cache-Control
           in: header
           required: false
@@ -183,7 +194,9 @@ paths:
                 type: string
                 description: Server-sent events. See the operation description.
         "400":
-          description: The body is not JSON, `input` is not an object, or `input` does not match the flow's declared input schema.
+          description: |
+            The body is not JSON, `input` is not an object, or `input` does not match the flow's declared
+            input schema. Also when `X-Milford-Timeout-Ms` is not a whole number from 1 to 600000.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }

@@ -19,6 +19,8 @@ const config = z.object({
 export const llmNode: NodeDef<z.infer<typeof config>> = {
   configSchema: config,
   requires: (c) => ({ provider: c.provider, capability: "chat" }),
+  // A provider outage or reconnect is worth a retry; a template error is a flow problem and is not.
+  retryable: (r) => !r.error?.startsWith("unknown template variable"),
   async run(ctx, up) {
     const c = ctx.config;
     let prompt: string;

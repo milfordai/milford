@@ -234,6 +234,47 @@ describe("per-flow openapi", () => {
   });
 });
 
+describe("request timeout override", () => {
+  // A node that answers "aborted" when its signal fires, or "done" after 300 ms, so the override is
+  // observable without timing flakiness: the engine default (1 ms) fires the abort way before 300 ms.
+  const waitNode = async (ctx: { signal: AbortSignal }) =>
+    new Promise<{ success: boolean; output?: string; error?: string }>((res) => {
+      const t = setTimeout(() => res({ success: true, output: "done" }), 300);
+      ctx.signal.addEventListener("abort", () => { clearTimeout(t); res({ success: false, error: "aborted" }); }, { once: true });
+    });
+  const engine = createEngine({
+    registry: defaultRegistry().registerNode("wait", { run: waitNode }),
+    flows: [{ id: "slow", nodes: [{ id: "a", type: "wait" }], edges: [] }],
+    timeoutMs: 1,
+  });
+  if (!engine.ok) throw new Error(engine.error);
+  const app = createApp({ engine: engine.value, log: () => {} });
+  const post = (headers: Record<string, string> = {}) => app.request("/v1/flows/slow/run", { method: "POST", headers, body: "{}" });
+
+  it("binds a run to the engine default without the header, and lets the header extend it", async () => {
+    const short = await post();
+    expect(short.status).toBe(200);
+    expect(((await short.json()) as { nodes: { a: { status: string; result?: { error?: string } } } }).nodes.a.result?.error).toBe("aborted");
+    const long = await post({ "x-milford-timeout-ms": "50000" });
+    expect(long.status).toBe(200);
+    expect(((await long.json()) as { nodes: { a: { status: string; result?: { output?: string } } } }).nodes.a).toMatchObject({ status: "done", result: { output: "done" } });
+  });
+
+  it("applies the override to an event stream", async () => {
+    const res = await app.request("/v1/flows/slow/run", { method: "POST", headers: { accept: "text/event-stream", "x-milford-timeout-ms": "50000" }, body: "{}" });
+    const text = await res.text();
+    expect(text).toContain('"output":"done"');
+  });
+
+  it("rejects malformed and oversized timeout headers with 400", async () => {
+    for (const bad of ["abc", "0", "-5", "200.5", "600001"]) {
+      const res = await post({ "x-milford-timeout-ms": bad });
+      expect(res.status, bad).toBe(400);
+      expect(((await res.json()) as { error: string }).error).toContain("X-Milford-Timeout-Ms");
+    }
+  });
+});
+
 describe("flow cache over HTTP", () => {
   let calls = 0;
   const registry = defaultRegistry().registerNode("count", { run: async () => (calls++, { success: true, output: `run ${calls}` }) });

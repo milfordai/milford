@@ -11,6 +11,16 @@ import { memoryRunStore, summarize, toRecord, type RunStore } from "./runs.js";
 
 const digest = (s: string) => createHash("sha256").update(s).digest();
 
+/** Highest `X-Milford-Timeout-Ms` a caller may ask for, so a run can never be pinned for too long. */
+export const MAX_RUN_TIMEOUT_MS = 600_000;
+
+/** Parses `X-Milford-Timeout-Ms`: a whole number of milliseconds, from 1 to `MAX_RUN_TIMEOUT_MS`. */
+function runTimeout(header: string | undefined): number | undefined {
+  if (header === undefined || header === "") return undefined;
+  const ms = Number(header);
+  return Number.isInteger(ms) && ms >= 1 && ms <= MAX_RUN_TIMEOUT_MS ? ms : NaN;
+}
+
 export type AppOptions = {
   engine: Engine;
   tokens?: string[];
@@ -89,6 +99,10 @@ export function createApp({ engine, tokens = [], maxBodyBytes = 1_000_000, idemp
     }
     const input = body.input ?? {};
     if (typeof input !== "object" || Array.isArray(input)) return c.json({ error: "input must be an object" }, 400);
+    // A per-request timeout override, applied to this run only.
+    const timeoutMs = runTimeout(c.req.header("x-milford-timeout-ms"));
+    if (Number.isNaN(timeoutMs))
+      return c.json({ error: `X-Milford-Timeout-Ms must be a whole number of milliseconds from 1 to ${MAX_RUN_TIMEOUT_MS}` }, 400);
     const sse = !!c.req.header("accept")?.includes("text/event-stream");
 
     // Idempotency-Key applies to JSON runs only. Replays do not count against the concurrency cap.
@@ -116,7 +130,7 @@ export function createApp({ engine, tokens = [], maxBodyBytes = 1_000_000, idemp
       const finish = ikey ? idempotent.begin(ikey, fingerprint) : undefined;
       let kept: RunResult | undefined;
       try {
-        const r = await engine.run(id, input, { signal: c.req.raw.signal, cache });
+        const r = await engine.run(id, input, { signal: c.req.raw.signal, cache, timeoutMs });
         done(r.ok && r.value.ok, r.ok ? r.value.runId : undefined, r.ok ? r.value.cache : undefined);
         if (r.ok) save(r.value);
         // Only successful runs are kept, so a retry after a failure runs again.
@@ -134,7 +148,7 @@ export function createApp({ engine, tokens = [], maxBodyBytes = 1_000_000, idemp
       // A client that disconnected mid-run must not turn a failed write into an unhandled rejection.
       let writes: Promise<unknown> = Promise.resolve();
       const send = (event: string, data: unknown) => (writes = writes.then(() => stream.writeSSE({ event, data: JSON.stringify(data) })).catch(() => {}));
-      const r = await engine.run(id, input, { signal: abort.signal, onEvent: (e) => void send(e.type, e) });
+      const r = await engine.run(id, input, { signal: abort.signal, timeoutMs, onEvent: (e) => void send(e.type, e) });
       done(r.ok && r.value.ok, r.ok ? r.value.runId : undefined);
       if (r.ok) save(r.value);
       await send("result", r.ok ? r.value : { error: r.error });

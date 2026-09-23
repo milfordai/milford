@@ -7,6 +7,7 @@ const fail = (error: string): NodeResult => ({ success: false, error });
 const joinOutputs = (up: Record<string, NodeResult>) => Object.values(up).map((r) => r.output ?? "").join("\n\n");
 
 export const inputNode: NodeDef = {
+  retryable: () => false,
   async run(ctx) {
     return { success: true, output: JSON.stringify(ctx.input), data: ctx.input };
   },
@@ -14,6 +15,8 @@ export const inputNode: NodeDef = {
 
 export const promptNode: NodeDef<{ template: string }> = {
   configSchema: z.object({ template: z.string() }),
+  // A template error is a flow problem: retrying it fails the same way.
+  retryable: () => false,
   async run(ctx, up) {
     const r = render(ctx.config.template, scopeOf(ctx.input, up));
     return r.ok ? { success: true, output: r.value } : fail(r.error);
@@ -22,6 +25,7 @@ export const promptNode: NodeDef<{ template: string }> = {
 
 export const outputNode: NodeDef<{ template?: string }> = {
   configSchema: z.object({ template: z.string().optional() }),
+  retryable: () => false,
   async run(ctx, up) {
     const results = Object.entries(up);
     const data = results.length === 1 ? results[0]![1].data : Object.fromEntries(results.map(([id, r]) => [id, r.data]));
@@ -40,6 +44,8 @@ const httpConfig = z.object({
 
 export const httpNode: NodeDef<z.infer<typeof httpConfig>> = {
   configSchema: httpConfig,
+  // Transient infrastructure: timeouts, reconnects, rate limits and 5xx answers. A 4xx is the caller's bug.
+  retryable: (r) => r.error !== undefined && !/^HTTP 4\d\d$/.test(r.error),
   async run(ctx, up) {
     const scope = scopeOf(ctx.input, up);
     const req = renderDeep({ url: ctx.config.url, headers: ctx.config.headers, body: ctx.config.body }, scope);

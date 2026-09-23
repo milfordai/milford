@@ -68,6 +68,15 @@ describe("mcp config", () => {
     expect(parseConfig("flows: [{ file: ./f.json }]", "/", {}, () => flow({ mode: "semantic", ttlMs: 1 })).ok).toBe(false);
     expect(parseConfig("flows: [{ file: ./f.json }]", "/", {}, () => flow({ mode: "direct", ttlMs: 0 })).ok).toBe(false);
   });
+  it("reads the full retry policy and rejects unknown fields", () => {
+    const flow = (retry: object) => JSON.stringify({ id: "f", nodes: [{ id: "p", type: "prompt", retry }], edges: [] });
+    const ok = parseConfig("flows: [{ file: ./f.json }]", "/", {}, () => flow({ attempts: 5, backoffMs: 100, multiplier: 3, maxBackoffMs: 60000, jitterMs: 20, stopDelayMs: 30000, on: "infra" }));
+    if (!ok.ok) throw new Error(ok.error);
+    expect(ok.value.flows[0].nodes[0]).toMatchObject({ retry: { attempts: 5, backoffMs: 100, multiplier: 3, maxBackoffMs: 60000, jitterMs: 20, stopDelayMs: 30000, on: "infra" } });
+    expect(parseConfig("flows: [{ file: ./f.json }]", "/", {}, () => flow({ attempts: 5, on: "everything" })).ok).toBe(false);
+    expect(parseConfig("flows: [{ file: ./f.json }]", "/", {}, () => flow({ attempts: 0 })).ok).toBe(false);
+    expect(parseConfig("flows: [{ file: ./f.json }]", "/", {}, () => flow({ attempts: 2, multiplier: 0 })).ok).toBe(false);
+  });
   it("defaults run history to memory and resolves the file path against the config", () => {
     const d = parseConfig("{}", "/cfg", {}, read);
     if (!d.ok) throw new Error(d.error);
