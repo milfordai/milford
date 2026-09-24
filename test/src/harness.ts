@@ -26,6 +26,12 @@ export type ServerOptions = {
   /** How long to wait for the server to report ready. */
   readyTimeoutMs?: number;
   env?: Record<string, string>;
+  /**
+   * Reuse this directory instead of a fresh temp dir, so a second start can see the first one's data
+   * (restart tests). The caller owns it: `close` does not delete it, and the config is rewritten with
+   * the new port on every start.
+   */
+  dir?: string;
 };
 
 export class RunningServer {
@@ -35,6 +41,8 @@ export class RunningServer {
   private readonly logsBuffer: string[];
   private readonly exited: Promise<{ code: number | null; logs: string }>;
   private readonly dir: string;
+  /** False when the caller supplied `dir` and keeps it after `close`. */
+  private readonly ownsDir: boolean;
   private stopped = false;
 
   private constructor(
@@ -44,6 +52,7 @@ export class RunningServer {
     exited: Promise<{ code: number | null; logs: string }>,
     env: Record<string, string>,
     dir: string,
+    ownsDir: boolean,
   ) {
     this.url = url;
     this.child = child;
@@ -51,6 +60,7 @@ export class RunningServer {
     this.exited = exited;
     this.env = env;
     this.dir = dir;
+    this.ownsDir = ownsDir;
   }
 
   static async start(opts: ServerOptions): Promise<RunningServer> {
@@ -58,10 +68,10 @@ export class RunningServer {
     if (target.kind === "url") {
       const base = target.url.replace(/\/$/, "");
       await waitForHealth(base, opts.readyTimeoutMs ?? 20_000);
-      return new RunningServer(base, undefined as never, [], Promise.resolve({ code: null, logs: "" }), opts.env ?? {}, "");
+      return new RunningServer(base, undefined as never, [], Promise.resolve({ code: null, logs: "" }), opts.env ?? {}, "", false);
     }
     const port = await freePort();
-    const dir = mkdtempSync(join(tmpdir(), "milford-test-"));
+    const dir = opts.dir ?? mkdtempSync(join(tmpdir(), "milford-test-"));
     const cfgPath = join(dir, "milford.config.yaml");
     writeFileSync(cfgPath, opts.config.replace("PORT", String(port)));
     for (const [p, content] of Object.entries(opts.files ?? {})) {
@@ -79,7 +89,7 @@ export class RunningServer {
       child.stderr.on("data", (d) => logsBuffer.push(d.toString()));
       child.on("exit", (code) => res({ code, logs: logsBuffer.join("") }));
     });
-    const server = new RunningServer(`http://127.0.0.1:${port}`, child, logsBuffer, exited, opts.env ?? {}, dir);
+    const server = new RunningServer(`http://127.0.0.1:${port}`, child, logsBuffer, exited, opts.env ?? {}, dir, opts.dir === undefined);
     try {
       await waitForHealth(server.url, opts.readyTimeoutMs ?? 20_000, exited, logsBuffer);
     } catch (e) {
@@ -94,14 +104,17 @@ export class RunningServer {
     return this.logsBuffer.join("");
   }
 
-  /** SIGTERM, let it drain (the CLI exits itself within 10s), then SIGKILL as a backstop. */
-  async close(): Promise<{ code: number | null; logs: string }> {
+  /**
+   * SIGTERM, let it drain (the CLI exits itself within 10s), then SIGKILL as a backstop. `timeoutMs`
+   * raises the backstop, so a test can watch the CLI's own slower shutdown path take effect first.
+   */
+  async close(timeoutMs = 10_000): Promise<{ code: number | null; logs: string }> {
     if (this.stopped) return this.exited;
     this.stopped = true;
     if (this.child.pid !== undefined && this.child.exitCode === null) this.child.kill("SIGTERM");
-    const raced = await Promise.race([this.exited, new Promise<null>((res) => setTimeout(() => res(null), 10_000))]);
+    const raced = await Promise.race([this.exited, new Promise<null>((res) => setTimeout(() => res(null), timeoutMs))]);
     if (raced === null && this.child.exitCode === null) this.child.kill("SIGKILL");
-    rmSync(this.dir, { recursive: true, force: true });
+    if (this.ownsDir) rmSync(this.dir, { recursive: true, force: true });
     return raced ?? { code: this.child.exitCode, logs: this.logs() };
   }
 }
@@ -109,7 +122,8 @@ export class RunningServer {
 /** Runs the suite's default target. Prefer `RunningServer.start`. */
 export const startServer = (opts: ServerOptions): Promise<RunningServer> => RunningServer.start(opts);
 
-async function freePort(): Promise<number> {
+/** A free TCP port on 127.0.0.1, for servers the harness does not start itself (the MCP HTTP server). */
+export async function freePort(): Promise<number> {
   return new Promise<number>((res, rej) => {
     const s = createServer().listen(0, "127.0.0.1", () => {
       const p = (s.address() as { port: number }).port;
@@ -141,9 +155,13 @@ async function waitForHealth(
   throw new Error(`server did not become ready on ${url} within ${timeoutMs}ms${tail ? `:\n${tail}` : ""}`);
 }
 
-/** Runs `milford-server <command> [config]` against the given config and returns the exit code and output. */
+/**
+ * Runs `milford-server <command...> [config]` against the given config and returns the exit code and
+ * output. `command` is one word (`validate`, `openapi`, `runs`) or several (`["runs", "show", id]`);
+ * the config path is always appended last.
+ */
 export async function runCli(
-  command: string,
+  command: string | string[],
   configText: string,
   opts: { env?: Record<string, string>; files?: Record<string, string> } = {},
 ): Promise<{ code: number | null; out: string }> {
@@ -158,8 +176,9 @@ export async function runCli(
     writeFileSync(full, content);
   }
   const out: string[] = [];
+  const words = Array.isArray(command) ? command : [command];
   const code = await new Promise<number | null>((res) => {
-    const child = spawn(target.cmd[0]!, [...target.cmd.slice(1), command, cfgPath], {
+    const child = spawn(target.cmd[0]!, [...target.cmd.slice(1), ...words, cfgPath], {
       cwd: dir,
       env: { ...process.env, ...(opts.env ?? {}) },
     });

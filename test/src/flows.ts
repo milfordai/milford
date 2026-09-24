@@ -96,3 +96,88 @@ export const cycleFlow = {
     { from: "b", to: "a" },
   ],
 };
+
+/** A chat flow that sends one templated prompt to the given provider. */
+export const llmFlow = (id: string, providerId: string, prompt: string, retry?: object) => ({
+  id,
+  nodes: [
+    { id: "in", type: "input" },
+    { id: "llm", type: "llm", config: { provider: providerId, prompt }, ...(retry ? { retry } : {}) },
+    { id: "out", type: "output", config: { template: "{{llm.output}}" } },
+  ],
+  edges: [
+    { from: "in", to: "llm" },
+    { from: "llm", to: "out" },
+  ],
+});
+
+/** Two chat calls issued in the same tick, so a per-provider rate limit must space them. */
+export const parallelLlmFlow = (id: string, providerId: string) => ({
+  id,
+  nodes: [
+    { id: "in", type: "input" },
+    { id: "a", type: "llm", config: { provider: providerId, prompt: `Call A on ${id}` } },
+    { id: "b", type: "llm", config: { provider: providerId, prompt: `Call B on ${id}` } },
+    { id: "out", type: "output", config: { template: "{{a.output}}|{{b.output}}" }, join: "all" },
+  ],
+  edges: [
+    { from: "in", to: "a" },
+    { from: "in", to: "b" },
+    { from: "a", to: "out" },
+    { from: "b", to: "out" },
+  ],
+});
+
+/** `count` decisions issued in the same tick, so a provider with `decideMany` batches them. */
+export const parallelDecisionFlow = (id: string, providerId: string, count: number) => ({
+  id,
+  nodes: [
+    { id: "in", type: "input" },
+    ...Array.from({ length: count }, (_, index) => ({
+      id: `d${index}`,
+      type: "decision",
+      config: { provider: providerId, kind: "choice", prompt: `Rate option number ${index}`, options: ["positive", "negative"] },
+    })),
+    {
+      id: "out",
+      type: "output",
+      config: { template: Array.from({ length: count }, (_, index) => `{{d${index}.output}}`).join("|") },
+      join: "all" as const,
+    },
+  ],
+  edges: [
+    ...Array.from({ length: count }, (_, index) => ({ from: "in", to: `d${index}` })),
+    ...Array.from({ length: count }, (_, index) => ({ from: `d${index}`, to: "out" })),
+  ],
+});
+
+/** A prompt flow with a description and a typed input, as MCP tools describe them. */
+export const greetFlow = {
+  id: "greet",
+  description: "Greet a person by name.",
+  input: { type: "object", properties: { name: { type: "string" } }, required: ["name"], additionalProperties: false },
+  nodes: [
+    { id: "in", type: "input" },
+    { id: "greet", type: "prompt", config: { template: "Hello {{input.name}}!" } },
+    { id: "out", type: "output" },
+  ],
+  edges: [
+    { from: "in", to: "greet" },
+    { from: "greet", to: "out" },
+  ],
+};
+
+/** A flow whose node always fails, for error results. */
+export const boomFlow = {
+  id: "boom",
+  description: "Always fails.",
+  nodes: [
+    { id: "in", type: "input" },
+    { id: "boom", type: "prompt", config: { template: "{{input.not.there}}" } },
+    { id: "out", type: "output" },
+  ],
+  edges: [
+    { from: "in", to: "boom" },
+    { from: "boom", to: "out" },
+  ],
+};
