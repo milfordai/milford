@@ -1,0 +1,10 @@
+# Runs once per message from the `orders` queue. The message body is the flow input, so
+# `{"order": 7}` arrives here as `input.order`. This flow needs no provider.
+id: process-order
+nodes:
+  - { id: in, type: input }
+  - { id: process, type: prompt, config: { template: "processed order {{input.order}}" } }
+  - { id: out, type: output }
+edges:
+  - { from: in, to: process }
+  - { from: process, to: out }

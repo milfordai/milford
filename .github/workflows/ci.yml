@@ -29,3 +29,18 @@ jobs:
           cd test
           pnpm install --frozen-lockfile
           pnpm test
+  # Latency gate (MIL-73): reruns the benchmarks and fails when a p95 regresses more than
+  # +10% vs this platform's section in bench/baseline.json. Until a linux-x64 section is
+  # committed, the first run here fails with its own numbers printed — record those numbers
+  # in the platforms section and every later run gates properly.
+  perf:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: Latency gate
+        run: node bench/run.mjs

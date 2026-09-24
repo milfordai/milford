@@ -45,6 +45,12 @@ export const ConfigSchema = z.object({
   flows: z.array(z.object({ id: z.string().optional(), file: z.string() })).default([]),
   /** Chat and webhook entry points. Each is validated by @milfordai/channels when the server starts. */
   channels: z.array(z.looseObject({ id: z.string(), type: z.string(), flow: z.string() })).default([]),
+  /**
+   * Queue consumers: each consumes a broker queue and runs its flow once per message. Off by default;
+   * each is validated by its adapter package when the server starts (for example @milfordai/queues-kafka
+   * for `type: kafka`).
+   */
+  queues: z.array(z.looseObject({ id: z.string(), type: z.string(), flow: z.string() })).default([]),
   /** Other MCP servers that `mcp` nodes can call (Streamable HTTP). */
   mcpServers: z.array(z.object({ id: z.string(), url: z.string(), headers: z.record(z.string(), z.string()).default({}) })).default([]),
   /** The `milford-mcp` server. Nothing is exposed unless listed in `expose`. */

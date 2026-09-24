@@ -7,6 +7,7 @@
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
     "coverage": "vitest run --coverage",
+    "bench": "node bench/run.mjs",
     "prepare": "husky"
   },
   "devDependencies": {

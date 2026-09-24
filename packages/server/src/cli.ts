@@ -7,6 +7,7 @@ import { serve } from "@hono/node-server";
 import { createApp } from "./app.js";
 import { fileRunStore, memoryRunStore } from "./runs.js";
 import { buildOpenApi } from "./openapi.js";
+import { createQueueConsumers } from "./queues.js";
 
 // `milford-server validate [config]` checks the config and every flow, then exits without listening.
 // `milford-server openapi [config]` prints the OpenAPI spec of the loaded flows.
@@ -48,13 +49,18 @@ const channels = createChannels(config.channels, { engine: engineValue, log: con
 if (!channels.ok) die(channels.error);
 const channelsValue = (channels as Extract<typeof channels, { ok: true }>).value;
 
+// Queue consumers are validated here (so `validate` covers them) and started below, before the port opens.
+const queues = await createQueueConsumers(config.queues, { engine: engineValue, log: console.log });
+if (!queues.ok) die(queues.error);
+const queuesValue = (queues as Extract<typeof queues, { ok: true }>).value;
+
 if (command === "openapi") {
   process.stdout.write(JSON.stringify(buildOpenApi(engineValue.flows()), null, 2) + "\n");
   await egress?.close();
   process.exit(0);
 }
 if (validateOnly) {
-  console.log(`milford: ${configPath} is valid (${flows.length} flow(s), ${channelsValue.length} channel(s))`);
+  console.log(`milford: ${configPath} is valid (${flows.length} flow(s), ${channelsValue.length} channel(s), ${queuesValue.length} queue consumer(s))`);
   await egress?.close();
   process.exit(0);
 }
@@ -68,12 +74,17 @@ const app = (() => {
   }
 })();
 if (!config.server.auth.tokens.length) console.warn("milford: no auth tokens configured, the API is open");
-const server = serve({ fetch: app.fetch, port: config.server.port }, (info) => console.log(`milford: ${flows.length} flow(s), ${channelsValue.length} channel(s), listening on :${info.port}`));
+// Queue consumers connect before the port opens: a broker that is down stops startup with a clear error.
+for (const consumer of queuesValue) {
+  const started = await consumer.start();
+  if (!started.ok) die(started.error);
+}
+const server = serve({ fetch: app.fetch, port: config.server.port }, (info) => console.log(`milford: ${flows.length} flow(s), ${channelsValue.length} channel(s), ${queuesValue.length} queue consumer(s), listening on :${info.port}`));
 for (const channel of channelsValue) await channel.start();
 // Stop accepting, let in-flight runs finish, but never hang forever.
 for (const signal of ["SIGINT", "SIGTERM"])
   process.on(signal, () => {
     setTimeout(() => process.exit(1), 10_000).unref();
-    void Promise.all([...channelsValue.map((channel) => channel.stop()), egress?.close()]).then(() => server.close(() => process.exit(0)));
+    void Promise.all([...channelsValue.map((channel) => channel.stop()), ...queuesValue.map((consumer) => consumer.stop()), egress?.close()]).then(() => server.close(() => process.exit(0)));
   });
 process.on("unhandledRejection", (error) => console.error("milford: unhandled rejection", error));
