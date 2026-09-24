@@ -4,8 +4,8 @@ import { createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { parse } from "yaml";
 import { describe, expect, it } from "vitest";
-import { createApp } from "./app.js";
-import { buildOpenApi } from "./openapi.js";
+import { createApp } from "../src/app.js";
+import { buildOpenApi } from "../src/openapi.js";
 import { parseConfig } from "@milfordai/config";
 
 const yaml = `
@@ -18,20 +18,20 @@ server:
   auth: { tokens: ["\${TOKEN}"] }
 `;
 const flowJson = JSON.stringify({ id: "hello", nodes: [{ id: "p", type: "prompt", config: { template: "Hello {{input.name}}" } }, { id: "out", type: "output" }], edges: [{ from: "p", to: "out" }] });
-const read = (p: string) => {
-  if (p.endsWith("hello.json")) return flowJson;
+const read = (path: string) => {
+  if (path.endsWith("hello.json")) return flowJson;
   throw new Error("ENOENT");
 };
 
 describe("server", () => {
-  const fake: Provider = { id: "m", type: "fake", capabilities: [], };
-  const cfg = parseConfig(yaml, "/cfg", { KEY: "k", TOKEN: "secret" }, read);
-  if (!cfg.ok) throw new Error(cfg.error);
-  const engine = createEngine({ registry: defaultRegistry().registerProvider("fake", () => ({ ok: true, value: fake })), providers: cfg.value.providers, flows: cfg.value.flows });
+  const fake: Provider = { id: "m", type: "fake", capabilities: [] };
+  const config = parseConfig(yaml, "/cfg", { KEY: "k", TOKEN: "secret" }, read);
+  if (!config.ok) throw new Error(config.error);
+  const engine = createEngine({ registry: defaultRegistry().registerProvider("fake", () => ({ ok: true, value: fake })), providers: config.value.providers, flows: config.value.flows });
   if (!engine.ok) throw new Error(engine.error);
   const app = createApp({ engine: engine.value, tokens: ["secret"], log: () => {}, maxBodyBytes: 200 });
   const auth = { authorization: "Bearer secret" };
-  const post = (id: string, body: unknown, headers: Record<string, string> = {}) => app.request(`/v1/flows/${id}/run`, { method: "POST", headers: { ...auth, ...headers }, body: JSON.stringify(body) });
+  const post = (flowId: string, body: unknown, headers: Record<string, string> = {}) => app.request(`/v1/flows/${flowId}/run`, { method: "POST", headers: { ...auth, ...headers }, body: JSON.stringify(body) });
 
   it("serves /health without auth and guards /v1", async () => {
     expect((await app.request("/health")).status).toBe(200);
@@ -41,9 +41,9 @@ describe("server", () => {
   });
 
   it("runs a flow", async () => {
-    const res = await post("hello", { input: { name: "Ann" } });
-    expect(res.status).toBe(200);
-    expect((await res.json()).output.output).toBe("Hello Ann");
+    const response = await post("hello", { input: { name: "Ann" } });
+    expect(response.status).toBe(200);
+    expect((await response.json()).output.output).toBe("Hello Ann");
   });
 
   it("returns 404 and 400 for bad requests", async () => {
@@ -58,17 +58,17 @@ describe("server", () => {
 
   it("sheds load with 503 when too many runs are active", async () => {
     let release!: () => void;
-    const gate = new Promise<void>((r) => (release = r));
+    const gate = new Promise<void>((resolve) => (release = resolve));
     const slow = createEngine({
       registry: defaultRegistry().registerNode("slow", { run: async () => (await gate, { success: true }) }),
       flows: [{ id: "s", nodes: [{ id: "a", type: "slow" }], edges: [] }],
       maxConcurrentRuns: 1,
     });
     if (!slow.ok) throw new Error(slow.error);
-    const a = createApp({ engine: slow.value, log: () => {} });
-    const first = a.request("/v1/flows/s/run", { method: "POST", body: "{}" });
-    await new Promise((r) => setTimeout(r, 10));
-    const second = await a.request("/v1/flows/s/run", { method: "POST", body: "{}" });
+    const app = createApp({ engine: slow.value, log: () => {} });
+    const first = app.request("/v1/flows/s/run", { method: "POST", body: "{}" });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    const second = await app.request("/v1/flows/s/run", { method: "POST", body: "{}" });
     expect(second.status).toBe(503);
     expect(second.headers.get("retry-after")).toBe("1");
     release();
@@ -77,16 +77,16 @@ describe("server", () => {
 
   it("logs one JSON line per run", async () => {
     const lines: string[] = [];
-    const a = createApp({ engine: engine.value, log: (l) => lines.push(l) });
-    await a.request("/v1/flows/hello/run", { method: "POST", body: JSON.stringify({ input: { name: "Ann" } }) });
+    const app = createApp({ engine: engine.value, log: (line) => lines.push(line) });
+    await app.request("/v1/flows/hello/run", { method: "POST", body: JSON.stringify({ input: { name: "Ann" } }) });
     expect(JSON.parse(lines[0]!)).toMatchObject({ level: "info", msg: "run", flow: "hello", ok: true });
   });
 
   it("streams events over SSE, ending with the result", async () => {
-    const res = await post("hello", { input: { name: "Ann" } }, { accept: "text/event-stream" });
-    const text = await res.text();
-    expect(res.headers.get("content-type")).toContain("text/event-stream");
-    expect([...text.matchAll(/^event: (.+)$/gm)].map((m) => m[1])).toEqual(["node:start", "node:done", "node:start", "node:done", "result"]);
+    const response = await post("hello", { input: { name: "Ann" } }, { accept: "text/event-stream" });
+    const text = await response.text();
+    expect(response.headers.get("content-type")).toContain("text/event-stream");
+    expect([...text.matchAll(/^event: (.+)$/gm)].map((match) => match[1])).toEqual(["node:start", "node:done", "node:start", "node:done", "result"]);
   });
 });
 
@@ -94,9 +94,9 @@ describe("webhook channels", () => {
   const secret = "0123456789abcdef";
   const engine = createEngine({ registry: defaultRegistry(), flows: [JSON.parse(flowJson)] });
   if (!engine.ok) throw new Error(engine.error);
-  const chs = createChannels([{ id: "w", type: "webhook", flow: "hello", secret }], { engine: engine.value, log: () => {} });
-  if (!chs.ok) throw new Error(chs.error);
-  const app = createApp({ engine: engine.value, tokens: ["bearer"], channels: chs.value, log: () => {} });
+  const channels = createChannels([{ id: "w", type: "webhook", flow: "hello", secret }], { engine: engine.value, log: () => {} });
+  if (!channels.ok) throw new Error(channels.error);
+  const app = createApp({ engine: engine.value, tokens: ["bearer"], channels: channels.value, log: () => {} });
   const signed = (body: string, key = secret) => {
     const ts = String(Math.floor(Date.now() / 1000));
     return { "x-milford-timestamp": ts, "x-milford-signature": `sha256=${createHmac("sha256", key).update(`${ts}.${body}`).digest("hex")}` };
@@ -104,9 +104,9 @@ describe("webhook channels", () => {
 
   it("accepts a signed request without a bearer token, and rejects a bad one", async () => {
     const body = JSON.stringify({ name: "Ann" });
-    const ok = await app.request("/hooks/w", { method: "POST", body, headers: signed(body) });
-    expect(ok.status).toBe(200);
-    expect((await ok.json()).output).toBe("Hello Ann");
+    const response = await app.request("/hooks/w", { method: "POST", body, headers: signed(body) });
+    expect(response.status).toBe(200);
+    expect((await response.json()).output).toBe("Hello Ann");
     expect((await app.request("/hooks/w", { method: "POST", body, headers: signed(body, "wrong-secret-value!") })).status).toBe(401);
   });
   it("404s unknown hooks and still guards /v1", async () => {
@@ -143,8 +143,8 @@ describe("idempotency", () => {
 
   it("runs once when the same key arrives while the first request is still running", async () => {
     const { app, runs } = counted();
-    const [a, b] = await Promise.all([post(app, "c", {}, "k"), post(app, "c", {}, "k")]);
-    expect((await a.json()).runId).toBe((await b.json()).runId);
+    const [first, second] = await Promise.all([post(app, "c", {}, "k"), post(app, "c", {}, "k")]);
+    expect((await first.json()).runId).toBe((await second.json()).runId);
     expect(runs()).toBe(1);
   });
 
@@ -176,12 +176,12 @@ describe("idempotency", () => {
 describe("openapi spec", () => {
   it("documents exactly the routes the app serves", () => {
     const spec = parse(readFileSync(new URL("../openapi.yaml", import.meta.url), "utf8")) as { paths: Record<string, Record<string, unknown>> };
-    const documented = Object.entries(spec.paths).flatMap(([path, ops]) => Object.keys(ops).map((m) => `${m.toUpperCase()} ${path}`)).sort();
+    const documented = Object.entries(spec.paths).flatMap(([path, ops]) => Object.keys(ops).map((method) => `${method.toUpperCase()} ${path}`)).sort();
     const engine = createEngine({ registry: defaultRegistry() });
     if (!engine.ok) throw new Error(engine.error);
     const served = createApp({ engine: engine.value, log: () => {} }).routes
-      .filter((r) => r.method !== "ALL" && !r.path.includes("*"))
-      .map((r) => `${r.method} ${r.path.replace(/:(\w+)/g, "{$1}")}`);
+      .filter((route) => route.method !== "ALL" && !route.path.includes("*"))
+      .map((route) => `${route.method} ${route.path.replace(/:(\w+)/g, "{$1}")}`);
     // A route with route-level middleware is listed once per handler.
     expect(documented).toEqual([...new Set(served)].sort());
   });
@@ -195,9 +195,9 @@ describe("input schema", () => {
   const post = (input: object) => app.request("/v1/flows/greet/run", { method: "POST", body: JSON.stringify({ input }) });
 
   it("answers 400 for input that breaks the flow's schema", async () => {
-    const res = await post({ name: 1 });
-    expect(res.status).toBe(400);
-    expect(((await res.json()) as { error: string }).error).toContain("name");
+    const response = await post({ name: 1 });
+    expect(response.status).toBe(400);
+    expect(((await response.json()) as { error: string }).error).toContain("name");
     expect((await post({ name: "Ann" })).status).toBe(200);
   });
 });
@@ -220,9 +220,9 @@ describe("per-flow openapi", () => {
     const spec = await get();
     expect(spec.openapi).toBe("3.1.0");
     expect(spec.paths["/v1/flows/{id}/run"]).toBeUndefined();
-    const ops = engine.value.flows().map((f) => spec.paths[`/v1/flows/${f.id}/run`]?.post);
+    const ops = engine.value.flows().map((flow) => spec.paths[`/v1/flows/${flow.id}/run`]?.post);
     expect(ops.every(Boolean)).toBe(true); // fails when a served flow is missing
-    expect(ops.map((o) => o.operationId)).toEqual(["runClassifyError", "runPlain"]);
+    expect(ops.map((operation) => operation.operationId)).toEqual(["runClassifyError", "runPlain"]);
     expect(ops[0].summary).toBe("Classify an error.");
     expect(spec.components.schemas.ClassifyErrorInput.required).toEqual(["message"]);
     expect(ops[0].requestBody.required).toBe(true);
@@ -238,9 +238,9 @@ describe("request timeout override", () => {
   // A node that answers "aborted" when its signal fires, or "done" after 300 ms, so the override is
   // observable without timing flakiness: the engine default (1 ms) fires the abort way before 300 ms.
   const waitNode = async (ctx: { signal: AbortSignal }) =>
-    new Promise<{ success: boolean; output?: string; error?: string }>((res) => {
-      const t = setTimeout(() => res({ success: true, output: "done" }), 300);
-      ctx.signal.addEventListener("abort", () => { clearTimeout(t); res({ success: false, error: "aborted" }); }, { once: true });
+    new Promise<{ success: boolean; output?: string; error?: string }>((resolve) => {
+      const timer = setTimeout(() => resolve({ success: true, output: "done" }), 300);
+      ctx.signal.addEventListener("abort", () => { clearTimeout(timer); resolve({ success: false, error: "aborted" }); }, { once: true });
     });
   const engine = createEngine({
     registry: defaultRegistry().registerNode("wait", { run: waitNode }),
@@ -261,16 +261,16 @@ describe("request timeout override", () => {
   });
 
   it("applies the override to an event stream", async () => {
-    const res = await app.request("/v1/flows/slow/run", { method: "POST", headers: { accept: "text/event-stream", "x-milford-timeout-ms": "50000" }, body: "{}" });
-    const text = await res.text();
+    const response = await app.request("/v1/flows/slow/run", { method: "POST", headers: { accept: "text/event-stream", "x-milford-timeout-ms": "50000" }, body: "{}" });
+    const text = await response.text();
     expect(text).toContain('"output":"done"');
   });
 
   it("rejects malformed and oversized timeout headers with 400", async () => {
     for (const bad of ["abc", "0", "-5", "200.5", "600001"]) {
-      const res = await post({ "x-milford-timeout-ms": bad });
-      expect(res.status, bad).toBe(400);
-      expect(((await res.json()) as { error: string }).error).toContain("X-Milford-Timeout-Ms");
+      const response = await post({ "x-milford-timeout-ms": bad });
+      expect(response.status, bad).toBe(400);
+      expect(((await response.json()) as { error: string }).error).toContain("X-Milford-Timeout-Ms");
     }
   });
 });
@@ -282,7 +282,7 @@ describe("flow cache over HTTP", () => {
   const engine = createEngine({ registry, flows: [flow] });
   if (!engine.ok) throw new Error(engine.error);
   const lines: string[] = [];
-  const app = createApp({ engine: engine.value, log: (l) => lines.push(l) });
+  const app = createApp({ engine: engine.value, log: (line) => lines.push(line) });
   const post = async (input: object, headers: Record<string, string> = {}) => (await (await app.request("/v1/flows/c/run", { method: "POST", headers, body: JSON.stringify({ input }) })).json()) as { cache?: string; runId: string };
 
   it("answers a repeated request from the cache, and shows hit or miss in the body and the log", async () => {
@@ -291,7 +291,7 @@ describe("flow cache over HTTP", () => {
     expect([first.cache, second.cache]).toEqual(["miss", "hit"]);
     expect(second.runId).toBe(first.runId);
     expect(calls).toBe(1);
-    expect(lines.map((l) => JSON.parse(l).cache)).toEqual(["miss", "hit"]);
+    expect(lines.map((line) => JSON.parse(line).cache)).toEqual(["miss", "hit"]);
   });
 
   it("honours Cache-Control: no-cache and no-store", async () => {
@@ -307,7 +307,7 @@ describe("flow cache over HTTP", () => {
   it("lists the cache field and header in the OpenAPI spec", () => {
     const spec = parse(readFileSync(new URL("../openapi.yaml", import.meta.url), "utf8")) as any;
     expect(spec.components.schemas.RunResult.properties.cache.enum).toEqual(["hit", "miss"]);
-    expect(spec.paths["/v1/flows/{id}/run"].post.parameters.map((p: { name: string }) => p.name)).toContain("Cache-Control");
+    expect(spec.paths["/v1/flows/{id}/run"].post.parameters.map((parameter: { name: string }) => parameter.name)).toContain("Cache-Control");
   });
 });
 
@@ -319,25 +319,25 @@ describe("run history", () => {
     return createApp({ engine: engine.value, log: () => {}, recordRuns });
   };
   const run = async (app: ReturnType<typeof make>, input: object, path = "/v1/flows/greet/run", headers: Record<string, string> = {}) => app.request(path, { method: "POST", headers, body: JSON.stringify({ input }) });
-  const list = async (app: ReturnType<typeof make>, q = "") => ((await (await app.request(`/v1/runs${q}`)).json()) as { runs: { runId: string; flow: string; ok: boolean; nodes: number }[] }).runs;
+  const list = async (app: ReturnType<typeof make>, query = "") => ((await (await app.request(`/v1/runs${query}`)).json()) as { runs: { runId: string; flow: string; ok: boolean; nodes: number }[] }).runs;
 
   it("lists runs newest first and returns one trace, without inputs or outputs by default", async () => {
     const app = make();
-    const a = (await (await run(app, { name: "Ann" })).json()) as { runId: string };
-    const b = (await (await run(app, { name: "Bo" })).json()) as { runId: string };
-    expect((await list(app)).map((r) => r.runId)).toEqual([b.runId, a.runId]);
+    const first = (await (await run(app, { name: "Ann" })).json()) as { runId: string };
+    const second = (await (await run(app, { name: "Bo" })).json()) as { runId: string };
+    expect((await list(app)).map((entry) => entry.runId)).toEqual([second.runId, first.runId]);
     expect(await list(app, "?flow=nope")).toEqual([]);
-    const one = await app.request(`/v1/runs/${a.runId}`);
-    const body = await one.json();
-    expect(body).toMatchObject({ runId: a.runId, flow: "greet", ok: true });
+    const response = await app.request(`/v1/runs/${first.runId}`);
+    const body = await response.json();
+    expect(body).toMatchObject({ runId: first.runId, flow: "greet", ok: true });
     expect(JSON.stringify(body)).not.toContain("Ann");
     expect((await app.request("/v1/runs/nope")).status).toBe(404);
   });
 
   it("keeps inputs and results with record: full", async () => {
     const app = make("full");
-    const a = (await (await run(app, { name: "Ann" })).json()) as { runId: string };
-    const body = (await (await app.request(`/v1/runs/${a.runId}`)).json()) as { input: unknown; output: { output: string } };
+    const first = (await (await run(app, { name: "Ann" })).json()) as { runId: string };
+    const body = (await (await app.request(`/v1/runs/${first.runId}`)).json()) as { input: unknown; output: { output: string } };
     expect(body.input).toEqual({ name: "Ann" });
     expect(body.output.output).toBe("Hello Ann!");
   });
@@ -355,5 +355,90 @@ describe("run history", () => {
   it("is documented", () => {
     const spec = parse(readFileSync(new URL("../openapi.yaml", import.meta.url), "utf8")) as { paths: Record<string, unknown> };
     expect(Object.keys(spec.paths)).toEqual(expect.arrayContaining(["/v1/runs", "/v1/runs/{id}"]));
+  });
+});
+
+describe("openai-compatible chat completions", () => {
+  // A chat provider that echoes the prompt, and a chat flow that runs it through an `llm` node.
+  const provider: Provider = {
+    id: "m",
+    type: "fake",
+    capabilities: ["chat"],
+    chat: async ({ prompt }) => ({ ok: true, value: { text: `echo: ${prompt}` } }),
+  };
+  const chatFlow = { id: "chat", nodes: [{ id: "p", type: "llm", config: { provider: "m", prompt: "{{input.prompt}}" } }, { id: "out", type: "output" }], edges: [{ from: "p", to: "out" }] };
+  const failingFlow = { id: "fails", nodes: [{ id: "f", type: "prompt", config: { template: "{{input.missing}}" } }, { id: "out", type: "output" }], edges: [{ from: "f", to: "out" }] };
+  const engine = createEngine({
+    registry: defaultRegistry().registerProvider("fake", () => ({ ok: true, value: provider })),
+    providers: [{ id: "m", type: "fake" }],
+    flows: [chatFlow, failingFlow],
+  });
+  if (!engine.ok) throw new Error(engine.error);
+  const app = createApp({ engine: engine.value, tokens: ["secret"], log: () => {} });
+  const auth = { authorization: "Bearer secret" };
+  const chat = (body: unknown, headers: Record<string, string> = {}) => app.request("/v1/chat/completions", { method: "POST", headers: { ...auth, ...headers }, body: JSON.stringify(body) });
+
+  it("runs a flow for a chat request and returns an OpenAI-shaped completion", async () => {
+    const response = await chat({ model: "chat", messages: [{ role: "user", content: "Hi there" }] });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("application/json");
+    const body = (await response.json()) as any;
+    expect(body.object).toBe("chat.completion");
+    expect(body.model).toBe("chat");
+    expect(body.id).toMatch(/^chatcmpl-/);
+    expect(body.choices).toEqual([{ index: 0, message: { role: "assistant", content: "echo: Hi there" }, finish_reason: "stop" }]);
+    expect(body.usage).toEqual({ prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 });
+    // The run is saved to history, named after the flow.
+    const runs = (await (await app.request("/v1/runs", { headers: auth })).json()) as { runs: { flow: string }[] };
+    expect(runs.runs[0]).toMatchObject({ flow: "chat" });
+  });
+
+  it("uses the last user message as input.prompt and ignores extra OpenAI fields", async () => {
+    const response = await chat({ model: "chat", messages: [{ role: "system", content: "be brief" }, { role: "user", content: "A" }, { role: "assistant", content: "ok" }, { role: "user", content: "B" }], temperature: 0.5, max_tokens: 10 });
+    expect(response.status).toBe(200);
+    expect(((await response.json()) as any).choices[0].message.content).toBe("echo: B");
+  });
+
+  it("streams OpenAI-style SSE chunks ending in [DONE]", async () => {
+    const response = await chat({ model: "chat", messages: [{ role: "user", content: "Stream me" }], stream: true });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("text/event-stream");
+    const text = await response.text();
+    const lines = text.split("\n").filter((line) => line.startsWith("data: "));
+    const data = lines.map((line) => line.slice(6));
+    expect(data.at(-1)).toBe("[DONE]");
+    const chunks = data.slice(0, -1).map((item) => JSON.parse(item)) as any[];
+    expect(chunks.every((chunk) => chunk.object === "chat.completion.chunk" && chunk.model === "chat")).toBe(true);
+    expect(chunks[0].choices[0].delta.role).toBe("assistant");
+    expect(chunks.map((chunk) => chunk.choices[0].delta.content).filter((content) => content !== undefined).join("")).toBe("echo: Stream me");
+    expect(chunks.at(-1).choices[0].finish_reason).toBe("stop");
+  });
+
+  it("returns 400 for malformed bodies and invalid messages", async () => {
+    expect((await app.request("/v1/chat/completions", { method: "POST", headers: auth, body: "{" })).status).toBe(400);
+    expect((await chat({})).status).toBe(400); // model missing
+    expect((await chat({ model: "chat" })).status).toBe(400); // messages missing
+    expect((await chat({ model: "chat", messages: [{ role: "user" }] })).status).toBe(400); // content missing
+    expect((await chat({ model: "chat", messages: [], stream: "yes" })).status).toBe(400); // stream not boolean
+  });
+
+  it("returns 404 for an unknown model and 401 without a token", async () => {
+    const notFound = await chat({ model: "nope", messages: [] });
+    expect(notFound.status).toBe(404);
+    expect((await notFound.json())).toMatchObject({ error: { message: expect.stringContaining("nope") } });
+    expect((await app.request("/v1/chat/completions", { method: "POST", body: JSON.stringify({ model: "chat", messages: [] }) })).status).toBe(401);
+  });
+
+  it("returns 500 with the failing node's error when the flow fails", async () => {
+    const response = await chat({ model: "fails", messages: [{ role: "user", content: "x" }] });
+    expect(response.status).toBe(500);
+    const body = (await response.json()) as { error: { message: string; type: string } };
+    expect(body.error.type).toBe("server_error");
+    expect(body.error.message).toContain("missing");
+  });
+
+  it("documents the route in the OpenAPI spec", () => {
+    const spec = parse(readFileSync(new URL("../openapi.yaml", import.meta.url), "utf8")) as any;
+    expect(spec.paths["/v1/chat/completions"].post.operationId).toBe("chatCompletions");
   });
 });

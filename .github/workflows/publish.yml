@@ -15,6 +15,13 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: pnpm test
+      # The black-box suite must pass before anything reaches npm: a release that breaks a documented
+      # behaviour must not be published.
+      - name: End-to-end suite
+        run: |
+          cd test
+          pnpm install --frozen-lockfile
+          pnpm test
       - name: The tag must match the package version
         run: test "v$(node -p "require('./packages/core/package.json').version")" = "$GITHUB_REF_NAME"
       - name: Add the license to each package

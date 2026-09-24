@@ -99,10 +99,10 @@ export interface Provider {
   id: string;
   type: string;
   capabilities: Capability[];
-  chat?(req: ChatRequest): Promise<Result<{ text: string }>>;
-  decide?(req: DecideRequest): Promise<Result<Decision>>;
+  chat?(request: ChatRequest): Promise<Result<{ text: string }>>;
+  decide?(request: DecideRequest): Promise<Result<Decision>>;
   /** Optional batching; core falls back to parallel `decide`. */
-  decideMany?(reqs: DecideRequest[]): Promise<Result<Decision[]>>;
+  decideMany?(requests: DecideRequest[]): Promise<Result<Decision[]>>;
 }
 
 export type ProviderConfig = {
@@ -118,8 +118,8 @@ export type ProviderConfig = {
 export type ProviderFactory = (config: ProviderConfig, deps: { fetch: typeof fetch }) => Result<Provider>;
 
 export type ProviderAccess = {
-  chat(id: string, req: ChatRequest): Promise<Result<{ text: string }>>;
-  decide(id: string, req: DecideRequest): Promise<Result<Decision>>;
+  chat(id: string, request: ChatRequest): Promise<Result<{ text: string }>>;
+  decide(id: string, request: DecideRequest): Promise<Result<Decision>>;
 };
 
 // --- Nodes ---------------------------------------------------------------

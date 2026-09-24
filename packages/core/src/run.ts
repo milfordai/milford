@@ -8,35 +8,35 @@ export type RunOptions = {
   input?: Record<string, unknown>;
   timeoutMs?: number;
   signal?: AbortSignal;
-  onEvent?: (e: RunEvent) => void;
+  onEvent?: (event: RunEvent) => void;
   runId?: string;
 };
 
-function check(c: Condition, result: NodeResult): boolean {
-  const v = c.path.split(".").reduce<any>((o, k) => o?.[k], result);
-  switch (c.op) {
-    case "eq": return v === c.value;
-    case "neq": return v !== c.value;
-    case "gt": return v > (c.value as number);
-    case "gte": return v >= (c.value as number);
-    case "lt": return v < (c.value as number);
-    case "lte": return v <= (c.value as number);
+function check(condition: Condition, result: NodeResult): boolean {
+  const value = condition.path.split(".").reduce<any>((acc, key) => acc?.[key], result);
+  switch (condition.op) {
+    case "eq": return value === condition.value;
+    case "neq": return value !== condition.value;
+    case "gt": return value > (condition.value as number);
+    case "gte": return value >= (condition.value as number);
+    case "lt": return value < (condition.value as number);
+    case "lte": return value <= (condition.value as number);
   }
 }
 
 const sleep = (ms: number, signal: AbortSignal) =>
-  new Promise<void>((res) => {
-    const t = setTimeout(res, ms);
-    signal.addEventListener("abort", () => { clearTimeout(t); res(); }, { once: true });
+  new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    signal.addEventListener("abort", () => { clearTimeout(timer); resolve(); }, { once: true });
   });
 
-const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
+const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 /** Runs a compiled flow. Never throws: failures land in the per-node results. */
 export async function runFlow(compiled: CompiledFlow, deps: RunDeps, opts: RunOptions = {}): Promise<RunResult> {
   const runId = opts.runId ?? crypto.randomUUID();
-  const emit = (e: RunEvent) => opts.onEvent?.(e);
-  const runSignal = AbortSignal.any([opts.signal, opts.timeoutMs === undefined ? undefined : AbortSignal.timeout(opts.timeoutMs)].filter((s): s is AbortSignal => !!s));
+  const emit = (event: RunEvent) => opts.onEvent?.(event);
+  const runSignal = AbortSignal.any([opts.signal, opts.timeoutMs === undefined ? undefined : AbortSignal.timeout(opts.timeoutMs)].filter((signal): signal is AbortSignal => !!signal));
   const hub = new ProviderHub(deps.providers ?? new Map(), runId, emit);
   const nodes: Record<string, NodeState> = {};
 
@@ -50,20 +50,21 @@ export async function runFlow(compiled: CompiledFlow, deps: RunDeps, opts: RunOp
         { runId, nodeId: node.id, input: opts.input ?? {}, config: compiled.configs.get(node.id) ?? node.config ?? {}, signal, providers: hub.access(node.id), fetch: deps.fetch ?? fetch },
         upstream,
       );
-    } catch (err) {
-      return { success: false, error: message(err) };
+    } catch (error) {
+      return { success: false, error: message(error) };
     }
   };
 
   const execute = async (node: Node, upstream: Record<string, NodeResult>): Promise<NodeResult> => {
-    const key = node.cache && deps.cache ? `${node.type}:${JSON.stringify(node.config)}:${JSON.stringify(upstream)}` : undefined;
-    const hit = key && deps.cache!.get(key);
+    const cacheKey = node.cache && deps.cache ? `${node.type}:${JSON.stringify(node.config)}:${JSON.stringify(upstream)}` : undefined;
+    const hit = cacheKey && deps.cache!.get(cacheKey);
     if (hit) return hit;
+
     const signal = node.timeoutMs === undefined ? runSignal : AbortSignal.any([runSignal, AbortSignal.timeout(node.timeoutMs)]);
     const policy = node.retry;
     // `on` defaults to "infra": only failures the node type classifies as retryable.
     const on = policy?.on ?? "infra";
-    const retry = (r: NodeResult) => policy !== undefined && (on === "all" || (on === "infra" && (deps.registry.nodes.get(node.type)?.retryable?.({ ...r }) ?? false)));
+    const retry = (result: NodeResult) => policy !== undefined && (on === "all" || (on === "infra" && (deps.registry.nodes.get(node.type)?.retryable?.({ ...result }) ?? false)));
     const wait = (attempt: number) => {
       const base = (policy?.backoffMs ?? 200) * (policy?.multiplier ?? 2) ** (attempt - 1);
       const capped = Math.min(base, policy?.maxBackoffMs ?? Infinity);
@@ -73,30 +74,32 @@ export async function runFlow(compiled: CompiledFlow, deps: RunDeps, opts: RunOp
     const started = Date.now();
     const tries = Math.max(1, policy?.attempts ?? 1);
     let result: NodeResult = { success: false, error: "not run" };
-    for (let i = 0; i < tries && !signal.aborted; i++) {
-      if (i > 0) await sleep(wait(i), signal);
+    for (let index = 0; index < tries && !signal.aborted; index++) {
+      if (index > 0) await sleep(wait(index), signal);
       result = await attempt(node, upstream, signal);
       if (result.success || !retry(result)) break;
       if (policy?.stopDelayMs !== undefined && Date.now() - started >= policy.stopDelayMs) break;
     }
-    if (result.success && key) deps.cache!.set(key, result);
+
+    if (result.success && cacheKey) deps.cache!.set(cacheKey, result);
     return result;
   };
 
   const exec = async (node: Node) => {
     const edges = compiled.incoming.get(node.id)!;
     // An edge is live when its source finished and its condition (if any) holds.
-    const live = edges.filter((e) => {
-      const from = nodes[e.from]!;
-      return from.status === "done" && (!e.when || check(e.when, from.result!));
+    const live = edges.filter((edge) => {
+      const from = nodes[edge.from]!;
+      return from.status === "done" && (!edge.when || check(edge.when, from.result!));
     });
     if (edges.length && (node.join === "all" ? live.length < edges.length : !live.length)) {
       nodes[node.id] = { status: "skipped" };
       return emit({ type: "node:skipped", runId, nodeId: node.id });
     }
+
     const start = performance.now();
     emit({ type: "node:start", runId, nodeId: node.id });
-    const result = await execute(node, Object.fromEntries(live.map((e) => [e.from, nodes[e.from]!.result!])));
+    const result = await execute(node, Object.fromEntries(live.map((edge) => [edge.from, nodes[edge.from]!.result!])));
     const ms = performance.now() - start;
     if (result.success) {
       nodes[node.id] = { status: "done", result, ms };
@@ -109,9 +112,9 @@ export async function runFlow(compiled: CompiledFlow, deps: RunDeps, opts: RunOp
 
   for (const level of compiled.levels) await Promise.all(level.map(exec));
 
-  const outNode = [...compiled.flow.nodes].reverse().find((n) => n.type === "output" && nodes[n.id]?.status === "done");
+  const outNode = [...compiled.flow.nodes].reverse().find((node) => node.type === "output" && nodes[node.id]?.status === "done");
   return {
-    ok: Object.values(nodes).every((n) => n.status !== "error"),
+    ok: Object.values(nodes).every((nodeState) => nodeState.status !== "error"),
     runId,
     nodes,
     output: outNode && nodes[outNode.id]!.result,

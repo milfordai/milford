@@ -20,5 +20,5 @@ export interface Channel {
   start(): Promise<void>;
   stop(): Promise<void>;
   /** Webhook only: the server mounts this at POST /hooks/:id. */
-  handle?(req: Request): Promise<Response>;
+  handle?(request: Request): Promise<Response>;
 }

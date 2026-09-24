@@ -7,7 +7,23 @@ permissions:
   contents: read
   packages: write
 jobs:
+  # The black-box suite must pass before any image is built and pushed (MIL-69 release gate).
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: End-to-end suite
+        run: |
+          cd test
+          pnpm install --frozen-lockfile
+          pnpm test
   image:
+    needs: verify
     runs-on: ubuntu-latest
     strategy:
       matrix:

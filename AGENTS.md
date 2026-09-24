@@ -9,10 +9,17 @@ Milford is a headless intelligent workflow engine: a TypeScript core library plu
 - Nodes and providers return results (`{ok, value} | {ok: false, error}`), they do not throw.
 - Flows are plain data, written in YAML (JSON also loads). No UI types or positions in the model.
 - Dependencies stay minimal: `zod`, `yaml`, `hono`, `vitest`. Providers use plain `fetch`.
+- Tests live in a package-level `test/` directory, never inside `src/`. Each package's `tsconfig.json` includes `test`, and `tsconfig.build.json` excludes it.
 - Prefer the smallest change that works; no speculative abstractions.
+
+## Coding style
+- Use empty lines between operations or logical groups of operations.
+- Prefer descriptive camelCase names over abbreviations. For example, `providerConfig` not `pc`, `fallbackId` not `id`, `fallbacks` not `fb`, `config` not `cfg`.
+- Error messages should be descriptive and actionable. Avoid generic strings like `"error"`; say what failed and why.
 
 ## Commands
 - `pnpm install`, `pnpm -r build`, `pnpm -r test`
+- `pnpm coverage` — runs unit and integration tests with coverage and writes the report to `./coverage`.
 
 ## Git flow
 - Long-lived branches: `main` (releases only, tagged) and `dev` (integration).

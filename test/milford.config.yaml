@@ -1,0 +1,5 @@
+flows:
+  - { file: ./flows/hello.json }
+server:
+  port: 8080
+  auth: { tokens: ["${MILFORD_TOKEN}"] }

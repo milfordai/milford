@@ -2,17 +2,17 @@ import type { Condition, Flow, Node } from "./types.js";
 
 /** Fluent builder that produces the plain-JSON Flow. */
 export function flow(id: string) {
-  const f: Flow = { id, nodes: [], edges: [] };
-  const b = {
+  const draft: Flow = { id, nodes: [], edges: [] };
+  const builder = {
     node(nodeId: string, type: string, config?: Record<string, unknown>, opts: Partial<Omit<Node, "id" | "type" | "config">> = {}) {
-      f.nodes.push({ id: nodeId, type, ...(config && { config }), ...opts });
-      return b;
+      draft.nodes.push({ id: nodeId, type, ...(config && { config }), ...opts });
+      return builder;
     },
     edge(from: string, to: string, when?: Condition) {
-      f.edges.push({ from, to, ...(when && { when }) });
-      return b;
+      draft.edges.push({ from, to, ...(when && { when }) });
+      return builder;
     },
-    build: (): Flow => f,
+    build: (): Flow => draft,
   };
-  return b;
+  return builder;
 }

@@ -18,20 +18,23 @@ const config = z.object({
 /** One chat call through a named provider. No loop, no tools. */
 export const llmNode: NodeDef<z.infer<typeof config>> = {
   configSchema: config,
-  requires: (c) => ({ provider: c.provider, capability: "chat" }),
+  requires: (config) => ({ provider: config.provider, capability: "chat" }),
   // A provider outage or reconnect is worth a retry; a template error is a flow problem and is not.
-  retryable: (r) => !r.error?.startsWith("unknown template variable"),
-  async run(ctx, up) {
-    const c = ctx.config;
+  retryable: (result) => !result.error?.startsWith("unknown template variable"),
+  async run(ctx, upstream) {
+    const config = ctx.config;
     let prompt: string;
-    if (c.prompt === undefined) prompt = Object.values(up).map((r) => r.output ?? "").join("\n\n");
-    else {
-      const r = render(c.prompt, scopeOf(ctx.input, up));
-      if (!r.ok) return { success: false, error: r.error };
-      prompt = r.value;
+    if (config.prompt === undefined) {
+      prompt = Object.values(upstream).map((result) => result.output ?? "").join("\n\n");
+    } else {
+      const rendered = render(config.prompt, scopeOf(ctx.input, upstream));
+      if (!rendered.ok) return { success: false, error: rendered.error };
+      prompt = rendered.value;
     }
-    if (c.maxInputChars !== undefined) prompt = prompt.slice(0, c.maxInputChars);
-    const res = await ctx.providers.chat(c.provider, { prompt, system: c.system ?? (c.preset && presets[c.preset]), model: c.model, signal: ctx.signal });
-    return res.ok ? ({ success: true, output: res.value.text } satisfies NodeResult) : { success: false, error: res.error };
+
+    if (config.maxInputChars !== undefined) prompt = prompt.slice(0, config.maxInputChars);
+
+    const response = await ctx.providers.chat(config.provider, { prompt, system: config.system ?? (config.preset && presets[config.preset]), model: config.model, signal: ctx.signal });
+    return response.ok ? ({ success: true, output: response.value.text } satisfies NodeResult) : { success: false, error: response.error };
   },
 };

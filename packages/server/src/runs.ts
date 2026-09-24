@@ -28,7 +28,7 @@ export interface RunStore {
   get(runId: string): RunRecord | undefined;
 }
 
-export const summarize = (r: RunRecord): RunSummary => ({ runId: r.runId, flow: r.flow, startedAt: r.startedAt, ms: r.ms, ok: r.ok, nodes: Object.keys(r.nodes).length });
+export const summarize = (record: RunRecord): RunSummary => ({ runId: record.runId, flow: record.flow, startedAt: record.startedAt, ms: record.ms, ok: record.ok, nodes: Object.keys(record.nodes).length });
 
 /**
  * The record of a run. By default only the trace is kept (status, timing and errors), because inputs and node
@@ -36,7 +36,7 @@ export const summarize = (r: RunRecord): RunSummary => ({ runId: r.runId, flow: 
  */
 export function toRecord(flow: string, startedAt: Date, ms: number, result: RunResult, input: unknown, mode: "trace" | "full"): RunRecord {
   const nodes = Object.fromEntries(
-    Object.entries(result.nodes).map(([id, n]) => [id, { status: n.status, ms: n.ms === undefined ? undefined : Math.round(n.ms), error: n.result?.error, ...(mode === "full" && { result: n.result }) }]),
+    Object.entries(result.nodes).map(([nodeId, nodeState]) => [nodeId, { status: nodeState.status, ms: nodeState.ms === undefined ? undefined : Math.round(nodeState.ms), error: nodeState.result?.error, ...(mode === "full" && { result: nodeState.result }) }]),
   );
   return { runId: result.runId, flow, startedAt: startedAt.toISOString(), ms: Math.round(ms), ok: result.ok, nodes, ...(mode === "full" && { input, output: result.output }) };
 }
@@ -45,14 +45,14 @@ export function toRecord(flow: string, startedAt: Date, ms: number, result: RunR
 export function memoryRunStore(max = 200): RunStore {
   const records: RunRecord[] = []; // newest first
   return {
-    save(r) {
-      records.unshift(r);
+    save(record) {
+      records.unshift(record);
       if (records.length > max) records.length = max;
     },
     list({ flow, limit = 50 } = {}) {
-      return records.filter((r) => !flow || r.flow === flow).slice(0, limit);
+      return records.filter((record) => !flow || record.flow === flow).slice(0, limit);
     },
-    get: (id) => records.find((r) => r.runId === id),
+    get: (runId) => records.find((record) => record.runId === runId),
   };
 }
 
@@ -72,10 +72,10 @@ export function fileRunStore(path: string, max = 200): RunStore {
   }
   return {
     ...memory,
-    save(r) {
+    save(record) {
       // ponytail: the file grows without bound. Add rotation or a size cap when history gets large.
-      appendFileSync(path, JSON.stringify(r) + "\n");
-      memory.save(r);
+      appendFileSync(path, JSON.stringify(record) + "\n");
+      memory.save(record);
     },
   };
 }

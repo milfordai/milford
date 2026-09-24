@@ -4,34 +4,35 @@ import { err, postJson } from "./util.js";
 
 const config = z.object({ apiKey: z.string(), baseUrl: z.string().default("https://api.typesafe.ai"), model: z.string().default("jev-latest") });
 
-const question = (r: DecideRequest) =>
-  r.kind === "choice" ? { type: "choice", instructions: r.prompt, criteria: Object.fromEntries((r.options ?? []).map((o) => [o, null])) }
-  : r.kind === "score" ? { type: "score", instructions: r.prompt, criteria: r.options }
-  : { type: "noul", instructions: r.prompt };
+const question = (request: DecideRequest) =>
+  request.kind === "choice" ? { type: "choice", instructions: request.prompt, criteria: Object.fromEntries((request.options ?? []).map((option) => [option, null])) }
+  : request.kind === "score" ? { type: "score", instructions: request.prompt, criteria: request.options }
+  : { type: "noul", instructions: request.prompt };
 
-function answer(kind: DecideRequest["kind"], a: any): Result<Decision> {
-  if (!a || a.type !== kind) return err("unexpected answer type");
-  if (kind === "choice") return { ok: true, value: { kind, choice: a.choice, probabilities: a.probabilities, confidence: a.confidence } };
-  if (kind === "score") return { ok: true, value: { kind, score: a.score, probabilities: a.probabilities, confidence: a.confidence } };
-  return { ok: true, value: { kind, noul: a.noul } };
+function answer(kind: DecideRequest["kind"], payload: any): Result<Decision> {
+  if (!payload || payload.type !== kind) return err("unexpected answer type");
+  if (kind === "choice") return { ok: true, value: { kind, choice: payload.choice, probabilities: payload.probabilities, confidence: payload.confidence } };
+  if (kind === "score") return { ok: true, value: { kind, score: payload.score, probabilities: payload.probabilities, confidence: payload.confidence } };
+  return { ok: true, value: { kind, noul: payload.noul } };
 }
 
 /** Jev (TypeSafe System One). One adapter among several; nothing in core depends on it. */
 export const typesafe: ProviderFactory = (raw, { fetch }) => {
-  const p = config.safeParse(raw);
-  if (!p.success) return err(p.error.message);
-  const c = p.data;
+  const parsed = config.safeParse(raw);
+  if (!parsed.success) return err(parsed.error.message);
+  const settings = parsed.data;
 
   /** One request, many questions over the same state. */
-  const ask = async (reqs: DecideRequest[], signal?: AbortSignal): Promise<Result<Decision[]>> => {
-    const questions = Object.fromEntries(reqs.map((r, i) => [`q${i}`, question(r)]));
-    const res = await postJson(fetch, `${c.baseUrl.replace(/\/$/, "")}/v1/systemone`, { authorization: `Bearer ${c.apiKey}` }, { state: reqs[0]!.state, model: reqs[0]!.model ?? c.model, questions }, signal);
-    if (!res.ok) return res;
+  const ask = async (requests: DecideRequest[], signal?: AbortSignal): Promise<Result<Decision[]>> => {
+    const questions = Object.fromEntries(requests.map((request, index) => [`q${index}`, question(request)]));
+    const response = await postJson(fetch, `${settings.baseUrl.replace(/\/$/, "")}/v1/systemone`, { authorization: `Bearer ${settings.apiKey}` }, { state: requests[0]!.state, model: requests[0]!.model ?? settings.model, questions }, signal);
+    if (!response.ok) return response;
+
     const out: Decision[] = [];
-    for (const [i, r] of reqs.entries()) {
-      const d = answer(r.kind, res.value?.answers?.[`q${i}`]);
-      if (!d.ok) return d;
-      out.push(d.value);
+    for (const [index, request] of requests.entries()) {
+      const decision = answer(request.kind, response.value?.answers?.[`q${index}`]);
+      if (!decision.ok) return decision;
+      out.push(decision.value);
     }
     return { ok: true, value: out };
   };
@@ -42,19 +43,19 @@ export const typesafe: ProviderFactory = (raw, { fetch }) => {
       id: raw.id,
       type: "typesafe",
       capabilities: ["decide"],
-      async decide(req) {
-        const r = await ask([req], req.signal);
-        return r.ok ? { ok: true, value: r.value[0]! } : r;
+      async decide(request) {
+        const result = await ask([request], request.signal);
+        return result.ok ? { ok: true, value: result.value[0]! } : result;
       },
       /** Server-side batching: requests over the same state share one call. */
-      async decideMany(reqs) {
+      async decideMany(requests) {
         const groups = new Map<string, number[]>();
-        reqs.forEach((r, i) => groups.set(JSON.stringify(r.state), [...(groups.get(JSON.stringify(r.state)) ?? []), i]));
-        const out: Decision[] = new Array(reqs.length);
-        const results = await Promise.all([...groups.values()].map(async (idx) => ({ idx, r: await ask(idx.map((i) => reqs[i]!), reqs[idx[0]!]!.signal) })));
-        for (const { idx, r } of results) {
-          if (!r.ok) return r;
-          idx.forEach((i, k) => (out[i] = r.value[k]!));
+        requests.forEach((request, index) => groups.set(JSON.stringify(request.state), [...(groups.get(JSON.stringify(request.state)) ?? []), index]));
+        const out: Decision[] = new Array(requests.length);
+        const results = await Promise.all([...groups.values()].map(async (indices) => ({ indices, result: await ask(indices.map((index) => requests[index]!), requests[indices[0]!]!.signal) })));
+        for (const { indices, result } of results) {
+          if (!result.ok) return result;
+          indices.forEach((index, position) => (out[index] = result.value[position]!));
         }
         return { ok: true, value: out };
       },

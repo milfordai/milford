@@ -16,4 +16,16 @@ jobs:
         run: "! grep -rniE 'typesafe|jev' packages/core/src"
       - run: pnpm build
       - run: pnpm typecheck
-      - run: pnpm test
+      - run: pnpm coverage
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          fail_ci_if_error: false
+          verbose: true
+      # Fast tier (MIL-69): the black-box suite gates every pull request. It starts the built
+      # server from packages/server/dist and tests it over HTTP.
+      - name: End-to-end suite (fast tier)
+        run: |
+          cd test
+          pnpm install --frozen-lockfile
+          pnpm test
