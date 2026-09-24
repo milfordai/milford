@@ -155,6 +155,65 @@ describe("flow cache", () => {
     expect((await run(withCfg([cachedFlow], [{ id: "p", type: "fake", model: "b" }]), "cached")).cache).toBe("miss"); // another model
     expect((await run(withCfg([{ ...cachedFlow, nodes: [...cachedFlow.nodes], description: "v2" } as typeof cachedFlow], [{ id: "p", type: "fake", model: "a" }]), "cached")).cache).toBe("miss"); // another flow
   });
+
+  it("shares one execution between identical concurrent runs (no stampede)", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    let entered = 0;
+    const reg = cached.registerNode("gated", { run: async () => (entered++, await gate, { success: true, output: "once" }) });
+    const engine = createEngine({ registry: reg, flows: [{ id: "cached", cache: { mode: "direct", ttlMs: 60_000 }, nodes: [{ id: "g", type: "gated" }, { id: "o", type: "output" }], edges: [{ from: "g", to: "o" }] }] });
+    if (!engine.ok) throw new Error(engine.error);
+
+    const first = run(engine.value, "cached", { q: 1 });
+    await new Promise((resolve) => setTimeout(resolve, 10)); // the first run has started and is holding
+    const second = run(engine.value, "cached", { q: 1 });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    release();
+    const [firstResult, secondResult] = await Promise.all([first, second]);
+    expect(entered).toBe(1); // the second caller shared the first execution instead of stampeding
+    expect([firstResult.cache, secondResult.cache]).toEqual(["miss", "hit"]);
+  });
+
+  it("runs uncached when the input is too deep to hash, instead of throwing", async () => {
+    const engine = build();
+    let deep: Record<string, unknown> = {};
+    let cursor: Record<string, unknown> = deep;
+    for (let index = 0; index < 20_000; index++) cursor = (cursor.n = {});
+    const result = await engine.run("cached", deep);
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.value.cache).toBe("miss");
+  });
+});
+
+describe("fallback chains", () => {
+  const registry = defaultRegistry().registerProvider("t", (config) => ({
+    ok: true,
+    value: {
+      id: config.id,
+      type: "t",
+      capabilities: ["decide" as const],
+      decide: async () => (config.id === "c" ? { ok: true, value: { kind: "noul" as const, noul: 0.9 } } : { ok: false, error: `${config.id} down` }),
+    },
+  }));
+  const chain = [
+    { id: "a", type: "t", fallback: ["b"] },
+    { id: "b", type: "t", fallback: ["c"] },
+    { id: "c", type: "t" },
+  ];
+  const flow = { id: "f", nodes: [{ id: "d", type: "decision", config: { provider: "a", kind: "noul", prompt: "q" } }], edges: [] };
+  const run = async (providers: { id: string; type: string; fallback?: string[] }[]) => {
+    const engine = createEngine({ registry, providers, flows: [flow] });
+    if (!engine.ok) throw new Error(engine.error);
+    const result = await engine.value.run("f");
+    if (!result.ok) throw new Error(result.error);
+    return result.value.nodes.d?.result?.output;
+  };
+
+  it("reaches the working provider whatever order the config declares them in", async () => {
+    expect(await run(chain)).toBe("0.9");
+    expect(await run([chain[1]!, chain[0]!, chain[2]!])).toBe("0.9"); // b first: a's fallback b must still reach c
+    expect(await run([...chain].reverse())).toBe("0.9");
+  });
 });
 
 describe("fallback cycle detection", () => {

@@ -76,6 +76,31 @@ describe("runFlow", () => {
     expect(result.ok).toBe(false);
   });
 
+  it("marks a run cut short by its own timeout, but not one aborted by the caller", async () => {
+    const ignoresSignal: NodeRunner = async () => {
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      return { success: true };
+    };
+    const flow = () => compile({ id: "f", nodes: [node("a", "slow"), node("b")], edges: [{ from: "a", to: "b" }] });
+
+    const timedOut = await runFlow(flow(), deps({ slow: ignoresSignal, t: echo }), { timeoutMs: 15 });
+    expect(timedOut.ok).toBe(false);
+    expect(timedOut.timedOut).toBe(true);
+    expect(timedOut.nodes.b?.result?.error).toBe("aborted"); // a node that never started reports "aborted", not "not run"
+
+    const controller = new AbortController();
+    const aborted = runFlow(flow(), deps({ slow: ignoresSignal, t: echo }), { signal: controller.signal });
+    controller.abort();
+    expect((await aborted).timedOut).toBeUndefined();
+  });
+
+  it("keeps running when an event subscriber throws", async () => {
+    const compiled = compile({ id: "f", nodes: [node("a")], edges: [] });
+    const result = await runFlow(compiled, deps({ t: echo }), { onEvent: () => { throw new Error("subscriber blew up"); } });
+    expect(result.ok).toBe(true);
+    expect(result.nodes.a?.status).toBe("done");
+  });
+
   it('join "all" requires every incoming edge to be live', async () => {
     const yes = { path: "data.v", op: "eq" as const, value: 1 };
     const makeFlow = (join?: "all") => compile({
@@ -171,5 +196,21 @@ describe("runFlow", () => {
     const result = await runFlow(compiled, runDeps);
     expect(calls).toBe(1);
     expect(result.nodes.a?.result?.output).toBe("1");
+  });
+
+  it("keys memoized results by the run input, and never shares them across flows or nodes", async () => {
+    const setKeys: string[] = [];
+    const cache = { get: () => undefined, set: (key: string) => void setKeys.push(key) };
+    const echoInput: NodeRunner = async (ctx) => ({ success: true, output: `for ${JSON.stringify(ctx.input)}` });
+    const runDeps = deps({ t: echoInput }, { cache });
+
+    await runFlow(compile({ id: "f", nodes: [{ ...node("a"), cache: true }], edges: [] }), runDeps, { input: { who: "ann" } });
+    await runFlow(compile({ id: "f", nodes: [{ ...node("a"), cache: true }], edges: [] }), runDeps, { input: { who: "bob" } });
+    const afterInput = setKeys.length;
+    expect(afterInput).toBe(2); // different input: separate entries, never one caller's result for another
+
+    await runFlow(compile({ id: "other", nodes: [{ ...node("a"), cache: true }], edges: [] }), runDeps, { input: { who: "ann" } });
+    await runFlow(compile({ id: "f", nodes: [{ ...node("b"), cache: true }], edges: [] }), runDeps, { input: { who: "ann" } });
+    expect(setKeys.length).toBe(afterInput + 2); // same input, other flow or node: separate entries too
   });
 });

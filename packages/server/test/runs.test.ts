@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { fileRunStore, memoryRunStore, summarize, toRecord } from "../src/runs.js";
 
 const result = (runId: string, ok = true): RunResult => ({ ok, runId, nodes: { a: { status: "done", ms: 12.4, result: { success: true, output: "secret text", data: { pii: 1 } } }, b: { status: ok ? "done" : "error", ms: 3, result: { success: ok, error: ok ? undefined : "boom" } } }, output: { success: true, output: "secret text" } });
-const record = (runId: string, flow = "f", mode: "trace" | "full" = "trace") => toRecord(flow, new Date("2026-01-01T00:00:00Z"), 20.6, result(runId, runId !== "bad"), { name: "Ann" }, mode);
+const record = (runId: string, flow = "f", mode: "trace" | "full" = "trace", caller?: string) => toRecord(flow, new Date("2026-01-01T00:00:00Z"), 20.6, result(runId, runId !== "bad"), { name: "Ann" }, mode, caller);
 
 describe("toRecord", () => {
   it("keeps only the trace by default, because outputs and inputs can be sensitive", () => {
@@ -24,6 +24,11 @@ describe("toRecord", () => {
     expect(record.output).toMatchObject({ output: "secret text" });
   });
 
+  it("records the caller when one is given, and nothing otherwise", () => {
+    expect(toRecord("f", new Date("2026-01-01T00:00:00Z"), 20.6, result("r1"), { name: "Ann" }, "trace", "t:abc")).toMatchObject({ caller: "t:abc" });
+    expect(toRecord("f", new Date("2026-01-01T00:00:00Z"), 20.6, result("r1"), { name: "Ann" }, "trace")).not.toHaveProperty("caller");
+  });
+
   it("summarizes", () => {
     expect(summarize(record("r1"))).toEqual({ runId: "r1", flow: "f", startedAt: "2026-01-01T00:00:00.000Z", ms: 21, ok: true, nodes: 2 });
   });
@@ -38,6 +43,16 @@ describe("memoryRunStore", () => {
     expect(store.list({ limit: 1 }).map((entry) => entry.runId)).toEqual(["r4"]);
     expect(store.get("r2")?.runId).toBe("r2");
     expect(store.get("r1")).toBeUndefined();
+  });
+
+  it("lists only one caller's runs when a caller is given", () => {
+    const store = memoryRunStore(10);
+    store.save(record("r1", "f", "trace", "caller-a"));
+    store.save(record("r2", "f", "trace", "caller-b"));
+    store.save(record("r3", "f", "trace", "caller-a"));
+    expect(store.list({ caller: "caller-a" }).map((entry) => entry.runId)).toEqual(["r3", "r1"]);
+    expect(store.list({ caller: "caller-b" }).map((entry) => entry.runId)).toEqual(["r2"]);
+    expect(store.list().map((entry) => entry.runId)).toEqual(["r3", "r2", "r1"]); // without a caller: everything, for the CLI
   });
 });
 

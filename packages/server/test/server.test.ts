@@ -156,6 +156,22 @@ describe("idempotency", () => {
     expect(runs()).toBe(1);
   });
 
+  it("gives two callers each their own key namespace", async () => {
+    let calls = 0;
+    const engine = createEngine({ registry: defaultRegistry().registerNode("count", { run: async () => ({ success: true, output: String(++calls) }) }), flows: [{ id: "c", nodes: [{ id: "a", type: "count" }], edges: [] }] });
+    if (!engine.ok) throw new Error(engine.error);
+    const app = createApp({ engine: engine.value, tokens: ["ann", "bob"], log: () => {} });
+    const send = (token: string) => app.request("/v1/flows/c/run", { method: "POST", headers: { authorization: `Bearer ${token}`, "idempotency-key": "same-key" }, body: JSON.stringify({ input: {} }) });
+    const ann = await send("ann");
+    const bob = await send("bob");
+    expect(ann.headers.get("idempotent-replayed")).toBeNull();
+    expect(bob.headers.get("idempotent-replayed")).toBeNull(); // Bob's key is not Ann's
+    expect((await ann.json()).runId).not.toBe((await bob.json()).runId);
+    expect(calls).toBe(2);
+    expect((await send("ann")).headers.get("idempotent-replayed")).toBe("true"); // but each caller still replays its own
+    expect(calls).toBe(2);
+  });
+
   it("does not keep failed runs, so a retry runs again", async () => {
     const { app } = counted();
     const first = await (await post(app, "f", {}, "k")).json();
@@ -332,6 +348,19 @@ describe("run history", () => {
     expect(body).toMatchObject({ runId: first.runId, flow: "greet", ok: true });
     expect(JSON.stringify(body)).not.toContain("Ann");
     expect((await app.request("/v1/runs/nope")).status).toBe(404);
+  });
+
+  it("lists and reads only the caller's own runs when the server has auth on", async () => {
+    const engine = createEngine({ registry: defaultRegistry(), flows: [flow] });
+    if (!engine.ok) throw new Error(engine.error);
+    const app = createApp({ engine: engine.value, tokens: ["ann", "bob"], log: () => {} });
+    const runAs = (token: string, name: string) => app.request("/v1/flows/greet/run", { method: "POST", headers: { authorization: `Bearer ${token}` }, body: JSON.stringify({ input: { name } }) });
+    const listAs = async (token: string) => ((await (await app.request("/v1/runs", { headers: { authorization: `Bearer ${token}` } })).json()) as { runs: { runId: string }[] }).runs;
+    const anns = (await (await runAs("ann", "Ann")).json()) as { runId: string };
+    await runAs("bob", "Bo");
+    expect((await listAs("bob")).map((entry) => entry.runId)).not.toContain(anns.runId); // Bob cannot list Ann's run
+    expect((await listAs("ann")).map((entry) => entry.runId)).toEqual([anns.runId]);
+    expect((await app.request(`/v1/runs/${anns.runId}`, { headers: { authorization: "Bearer bob" } })).status).toBe(404); // nor read it by id
   });
 
   it("keeps inputs and results with record: full", async () => {

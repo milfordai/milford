@@ -7,9 +7,12 @@ export const scopeOf = (input: Record<string, unknown>, upstream: Record<string,
 
 const isResult = (value: unknown): value is NodeResult => typeof value === "object" && value !== null && "success" in value;
 
-/** Resolves a dotted path. A bare node id resolves to that node's `output`. */
+/** Path steps that never resolve: they reach into an object's prototype instead of its data. */
+const BLOCKED_STEPS = new Set(["__proto__", "constructor", "prototype"]);
+
+/** Resolves a dotted path. A bare node id resolves to that node's `output`. Prototype steps are unknown variables. */
 export function resolve(path: string, scope: Scope): unknown {
-  const value = path.split(".").reduce<any>((acc, key) => acc?.[key], scope);
+  const value = path.split(".").reduce<any>((acc, key) => (acc === null || acc === undefined || BLOCKED_STEPS.has(key) ? undefined : acc[key]), scope);
   return isResult(value) ? value.output : value;
 }
 

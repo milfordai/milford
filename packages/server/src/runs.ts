@@ -12,6 +12,8 @@ export type RunRecord = {
   startedAt: string;
   ms: number;
   ok: boolean;
+  /** Hashed identity of the caller whose run this was, so `GET /v1/runs` can list one caller's runs only. */
+  caller?: string;
   nodes: Record<string, RunNode>;
   /** Only with `record: full`. */
   input?: unknown;
@@ -23,8 +25,8 @@ export type RunSummary = Pick<RunRecord, "runId" | "flow" | "startedAt" | "ms" |
 /** Where finished runs are kept. Implement it to store history somewhere else. */
 export interface RunStore {
   save(record: RunRecord): void;
-  /** Newest first. */
-  list(options?: { flow?: string; limit?: number }): RunRecord[];
+  /** Newest first, optionally only one caller's runs. */
+  list(options?: { flow?: string; limit?: number; caller?: string }): RunRecord[];
   get(runId: string): RunRecord | undefined;
 }
 
@@ -34,11 +36,11 @@ export const summarize = (record: RunRecord): RunSummary => ({ runId: record.run
  * The record of a run. By default only the trace is kept (status, timing and errors), because inputs and node
  * outputs can hold personal data or secrets. With `full`, the input and every node result are kept too.
  */
-export function toRecord(flow: string, startedAt: Date, ms: number, result: RunResult, input: unknown, mode: "trace" | "full"): RunRecord {
+export function toRecord(flow: string, startedAt: Date, ms: number, result: RunResult, input: unknown, mode: "trace" | "full", caller?: string): RunRecord {
   const nodes = Object.fromEntries(
     Object.entries(result.nodes).map(([nodeId, nodeState]) => [nodeId, { status: nodeState.status, ms: nodeState.ms === undefined ? undefined : Math.round(nodeState.ms), error: nodeState.result?.error, ...(mode === "full" && { result: nodeState.result }) }]),
   );
-  return { runId: result.runId, flow, startedAt: startedAt.toISOString(), ms: Math.round(ms), ok: result.ok, nodes, ...(mode === "full" && { input, output: result.output }) };
+  return { runId: result.runId, flow, startedAt: startedAt.toISOString(), ms: Math.round(ms), ok: result.ok, ...(caller && { caller }), nodes, ...(mode === "full" && { input, output: result.output }) };
 }
 
 /** The newest `max` runs, in memory. Lost on restart. */
@@ -49,8 +51,8 @@ export function memoryRunStore(max = 200): RunStore {
       records.unshift(record);
       if (records.length > max) records.length = max;
     },
-    list({ flow, limit = 50 } = {}) {
-      return records.filter((record) => !flow || record.flow === flow).slice(0, limit);
+    list({ flow, limit = 50, caller } = {}) {
+      return records.filter((record) => (!flow || record.flow === flow) && (!caller || record.caller === caller)).slice(0, limit);
     },
     get: (runId) => records.find((record) => record.runId === runId),
   };

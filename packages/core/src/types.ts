@@ -33,7 +33,7 @@ export type Node = {
   join?: "any" | "all";
   retry?: RetryPolicy;
   timeoutMs?: number;
-  /** Memoize successful results by (type, config, upstream). */
+  /** Memoize successful results by (flow, node, config, upstream results and run input). */
   cache?: boolean;
   /** Opaque to the engine; an editor can keep layout here. */
   meta?: unknown;
@@ -43,7 +43,7 @@ export type Flow = {
   id: string;
   /** What the flow does. Shown to callers such as MCP clients. */
   description?: string;
-  /** JSON Schema of the run input, for callers that need to describe it. The engine does not enforce it. */
+  /** JSON Schema of the run input, for callers that need to describe it. A run whose input does not match it fails with an "invalid input" error. */
   input?: Record<string, unknown>;
   /**
    * Reuse the result of an earlier identical run instead of running the flow again. Off by default: only
@@ -74,6 +74,8 @@ export type RunResult = {
   output?: NodeResult;
   /** Only for flows with `cache`: `hit` is an earlier run's result (its `runId` and trace), `miss` a run that executed. */
   cache?: "hit" | "miss";
+  /** True when the run was cut short by its own `timeoutMs`, so a caller can tell a timeout from a node failure. */
+  timedOut?: boolean;
 };
 
 // --- Provider port -------------------------------------------------------

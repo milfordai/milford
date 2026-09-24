@@ -37,15 +37,17 @@ describe("rateLimit", () => {
     expect((await get(app, "a")).status).toBe(429); // a long pause does not bank more than the burst
   });
 
-  it("tells callers apart by X-Forwarded-For when there is no token, and forgets the oldest callers", async () => {
+  it("tells unauthenticated callers apart by socket address, ignores X-Forwarded-For, and forgets the oldest callers", async () => {
     const clock = { t: 0 };
     const app = limited({ perSecond: 1, burst: 1, maxCallers: 2 }, clock);
-    const ip = (address: string) => get(app, undefined, { "x-forwarded-for": `${address}, 10.0.0.1` });
-    expect((await ip("1.1.1.1")).status).toBe(200);
-    expect((await ip("1.1.1.1")).status).toBe(429);
-    expect((await ip("2.2.2.2")).status).toBe(200);
-    await ip("3.3.3.3"); // pushes 1.1.1.1 out
-    expect((await ip("1.1.1.1")).status).toBe(200); // a fresh bucket: memory stays bounded
+    const env = (remoteAddress: string) => ({ incoming: { socket: { remoteAddress } } });
+    expect((await app.request("/", { headers: { "x-forwarded-for": "1.1.1.1" } }, env("1.1.1.1"))).status).toBe(200);
+    expect((await app.request("/", { headers: { "x-forwarded-for": "9.9.9.9" } }, env("1.1.1.1"))).status).toBe(429); // the header does not get a fresh bucket
+    expect((await app.request("/", {}, env("2.2.2.2"))).status).toBe(200);
+    await app.request("/", {}, env("3.3.3.3")); // pushes 1.1.1.1 out
+    expect((await app.request("/", {}, env("1.1.1.1"))).status).toBe(200); // a fresh bucket: memory stays bounded
+    expect((await get(app)).status).toBe(200); // no socket info: one shared bucket, separate from the addresses
+    expect((await get(app)).status).toBe(429);
   });
 });
 

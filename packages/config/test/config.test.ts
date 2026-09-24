@@ -27,6 +27,14 @@ describe("config", () => {
   it("lists every missing env var", () => {
     expect(parseConfig(yaml, "/cfg", {}, read)).toEqual({ ok: false, error: "environment variables not set: KEY, TOKEN" });
   });
+  it("rejects empty or whitespace-padded auth tokens, but allows running with auth off", () => {
+    const tokens = (list: string) => `server: { auth: { tokens: ${list} } }`;
+    expect(parseConfig(tokens('[""]'), "/", {}, read).ok).toBe(false); // an empty token would match a request that sends no credentials
+    expect(parseConfig(tokens('[" "]'), "/", {}, read).ok).toBe(false);
+    expect(parseConfig(tokens('[" t1 "]'), "/", {}, read).ok).toBe(false);
+    expect(parseConfig(tokens("[]"), "/", {}, read).ok).toBe(true); // no tokens: auth off
+    expect(parseConfig(tokens('["t1"]'), "/", {}, read).ok).toBe(true);
+  });
   it("defaults the run timeout and accepts provider resilience settings", () => {
     const result = parseConfig("providers: [{ id: a, type: openai, circuitBreaker: { failures: 3, resetMs: 5000 }, rateLimit: { perSecond: 2 } }]", "/", {}, read);
     if (!result.ok) throw new Error(result.error);
@@ -47,6 +55,10 @@ describe("mcp config", () => {
     if (!result.ok) throw new Error(result.error);
     expect(result.value.config.mcp).toMatchObject({ expose: [], transport: "stdio", port: 8090 });
     expect(result.value.config.mcpServers[0]).toEqual({ id: "crm", url: "https://crm.example.com/mcp", headers: {} });
+  });
+  it("rejects an empty mcp auth token like an empty server token", () => {
+    expect(parseConfig('mcp: { auth: { tokens: [""] } }', "/", {}, read).ok).toBe(false);
+    expect(parseConfig('mcp: { auth: { tokens: ["ok-token"] } }', "/", {}, read).ok).toBe(true);
   });
   it("keeps a flow's description and input schema", () => {
     const flow = JSON.stringify({ id: "f", description: "does a thing", input: { type: "object", properties: { text: { type: "string" } } }, nodes: [], edges: [] });

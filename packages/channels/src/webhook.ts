@@ -24,7 +24,8 @@ export function webhook(config: z.infer<typeof webhookConfig>, deps: ChannelDeps
       const given = (request.headers.get("x-milford-signature") ?? "").replace(/^sha256=/, "");
       const want = createHmac("sha256", config.secret).update(`${ts}.${raw}`).digest("hex");
       const fresh = Math.abs(Date.now() / 1000 - Number(ts)) <= TOLERANCE_S;
-      const valid = given.length === want.length && timingSafeEqual(Buffer.from(given), Buffer.from(want));
+      // Hex first: any other shape would make timingSafeEqual throw on the byte length, not fail the check.
+      const valid = /^[0-9a-f]{64}$/.test(given) && timingSafeEqual(Buffer.from(given, "hex"), Buffer.from(want, "hex"));
       if (!fresh || !valid) return json({ error: "invalid signature" }, 401);
 
       let input: unknown;

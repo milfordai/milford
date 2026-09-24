@@ -59,7 +59,14 @@ if (validateOnly) {
   process.exit(0);
 }
 
-const app = createApp({ engine: engineValue, channels: channelsValue, tokens: config.server.auth.tokens, maxBodyBytes: config.server.maxBodyBytes, idempotencyTtlMs: config.server.idempotencyTtlMs, runs: config.server.runs.store === "file" ? fileRunStore(config.server.runs.path, config.server.runs.max) : memoryRunStore(config.server.runs.max), recordRuns: config.server.runs.record, rateLimit: config.server.rateLimit });
+// A bad token in the config stops startup here, with the message from the guard in createApp.
+const app = (() => {
+  try {
+    return createApp({ engine: engineValue, channels: channelsValue, tokens: config.server.auth.tokens, maxBodyBytes: config.server.maxBodyBytes, idempotencyTtlMs: config.server.idempotencyTtlMs, runs: config.server.runs.store === "file" ? fileRunStore(config.server.runs.path, config.server.runs.max) : memoryRunStore(config.server.runs.max), recordRuns: config.server.runs.record, rateLimit: config.server.rateLimit });
+  } catch (error) {
+    return die(error instanceof Error ? error.message : String(error));
+  }
+})();
 if (!config.server.auth.tokens.length) console.warn("milford: no auth tokens configured, the API is open");
 const server = serve({ fetch: app.fetch, port: config.server.port }, (info) => console.log(`milford: ${flows.length} flow(s), ${channelsValue.length} channel(s), listening on :${info.port}`));
 for (const channel of channelsValue) await channel.start();

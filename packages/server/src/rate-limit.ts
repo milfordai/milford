@@ -11,8 +11,14 @@ export type RateLimitOptions = {
 };
 
 /**
+ * The stable identity of a caller: its hashed bearer token, or the shared anonymous key when there is none.
+ * The run history is keyed the same way, so one caller can only list and read its own runs.
+ */
+export const callerKey = (authorization: string | undefined) => `t:${createHash("sha256").update(authorization?.replace(/^Bearer /i, "") ?? "-").digest("hex")}`;
+
+/**
  * Token bucket per caller, answering `429` with `Retry-After` instead of making the caller wait.
- * A caller is its bearer token (hashed), or the first `X-Forwarded-For` address, or one shared bucket.
+ * A caller is its bearer token (hashed), or its socket address, or one shared bucket.
  * Put it after authentication, so only valid tokens get a bucket.
  */
 export function rateLimit(options: RateLimitOptions, now: () => number = Date.now): MiddlewareHandler {
@@ -20,8 +26,11 @@ export function rateLimit(options: RateLimitOptions, now: () => number = Date.no
   const max = options.maxCallers ?? 10_000;
   const buckets = new Map<string, { tokens: number; last: number }>();
   return async (context, next) => {
-    const auth = context.req.header("authorization")?.replace(/^Bearer /i, "");
-    const key = auth ? `t:${createHash("sha256").update(auth).digest("hex")}` : `ip:${context.req.header("x-forwarded-for")?.split(",")[0]?.trim() ?? "-"}`;
+    const authorization = context.req.header("authorization");
+    // Unauthenticated callers are keyed by their socket address, not X-Forwarded-For: that header comes
+    // from the client, and honoring it would give every request a fresh bucket.
+    const address = (context.env as { incoming?: { socket?: { remoteAddress?: string } } } | undefined)?.incoming?.socket?.remoteAddress;
+    const key = authorization?.replace(/^Bearer /i, "") ? callerKey(authorization) : `ip:${address ?? "-"}`;
     const current = now();
     const bucket = buckets.get(key) ?? { tokens: burst, last: current };
     buckets.delete(key);
