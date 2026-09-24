@@ -4,13 +4,34 @@ export type Op = "eq" | "neq" | "gt" | "gte" | "lt" | "lte";
 /** Branch condition, evaluated on the upstream node's NodeResult, e.g. path "data.choice". */
 export type Condition = { path: string; op: Op; value: unknown };
 
+/** Retry policy of a node. Mirrors tenacity: `attempts`/`stopDelayMs` stop, `backoffMs`/`multiplier` wait. */
+export type RetryPolicy = {
+  /** Most attempts, including the first. Same as tenacity's `stop_after_attempt`. */
+  attempts: number;
+  /** Wait before the second attempt; doubles by `multiplier`, capped at `maxBackoffMs`. Same as tenacity's `wait_exponential`. */
+  backoffMs?: number;
+  /** Backoff multiplier; defaults to 2, matching the old behaviour. */
+  multiplier?: number;
+  /** Upper bound on each backoff wait. */
+  maxBackoffMs?: number;
+  /** Random plus/minus to add to each backoff wait, to scatter retries. */
+  jitterMs?: number;
+  /** Stop trying once this many milliseconds have passed since the first attempt. Same as tenacity's `stop_after_delay`. */
+  stopDelayMs?: number;
+  /**
+   * Which failures are retried. `infra` (default) retries failures the node type classifies as retryable
+   * (declared through its `retryable` hook); `all` retries every failure; `none` never retries.
+   */
+  on?: "infra" | "all" | "none";
+};
+
 export type Node = {
   id: string;
   type: string;
   config?: Record<string, unknown>;
   /** "any" (default): runs when at least one incoming edge is live. "all": every incoming edge must be live. */
   join?: "any" | "all";
-  retry?: { attempts: number; backoffMs?: number };
+  retry?: RetryPolicy;
   timeoutMs?: number;
   /** Memoize successful results by (type, config, upstream). */
   cache?: boolean;

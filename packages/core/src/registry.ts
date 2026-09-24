@@ -6,6 +6,13 @@ export type NodeDef<C = any> = {
   configSchema?: z.ZodType<C>;
   /** Provider the node calls, checked against provider capabilities at load time. */
   requires?: (config: C) => { provider: string; capability: Capability } | undefined;
+  /**
+   * Classifies a node failure as retryable, for the `retry: { on: "infra" }` policy. Return true for failures
+   * that are infrastructure (timeouts, API reconnects, rate limits) or a model failing to produce a
+   * structured output; false for flow problems (bad templates, bad input). Absent means no failure is
+   * retried under `on: "infra"`.
+   */
+  retryable?: (result: NodeResult) => boolean;
   run(ctx: NodeContext<C>, upstream: Record<string, NodeResult>): Promise<NodeResult>;
 };
 

@@ -22,6 +22,9 @@ const config = z.object({
 export const decisionNode: NodeDef<z.infer<typeof config>> = {
   configSchema: config.refine((c) => c.kind === "noul" || c.options !== undefined, { message: "options are required for choice and score" }),
   requires: (c) => ({ provider: c.provider, capability: "decide" }),
+  // A provider outage, reconnect or a model that failed to produce a decision is retryable; template and
+  // options errors are flow problems and are not.
+  retryable: (r) => !r.error?.startsWith("unknown template variable") && !r.error?.startsWith("options") && !r.error?.startsWith("score needs"),
   async run(ctx, up) {
     const c = ctx.config;
       const scope = scopeOf(ctx.input, up);

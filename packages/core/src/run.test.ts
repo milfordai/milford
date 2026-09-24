@@ -91,9 +91,76 @@ describe("runFlow", () => {
   it("retries failed nodes with backoff", async () => {
     let calls = 0;
     const flaky: NodeRunner = async () => (++calls < 3 ? { success: false, error: "no" } : { success: true });
-    const c = compile({ id: "f", nodes: [{ ...n("a"), retry: { attempts: 3, backoffMs: 1 } }], edges: [] });
+    const c = compile({ id: "f", nodes: [{ ...n("a"), retry: { attempts: 3, backoffMs: 1, on: "all" } }], edges: [] });
     expect((await runFlow(c, deps({ t: flaky }))).ok).toBe(true);
     expect(calls).toBe(3);
+  });
+
+  it("does not retry a failure the node type does not mark retryable", async () => {
+    let calls = 0;
+    const flaky: NodeRunner = async () => { calls++; return { success: false, error: "no" }; };
+    const c = compile({ id: "f", nodes: [{ ...n("a"), retry: { attempts: 3, backoffMs: 1 } }], edges: [] });
+    const r = await runFlow(c, deps({ t: flaky }));
+    expect(r.ok).toBe(false);
+    expect(calls).toBe(1);
+  });
+
+  it('retries a failure the node type marks retryable ("on" defaults to infra)', async () => {
+    let calls = 0;
+    const flaky: NodeRunner = async () => (++calls < 2 ? { success: false, error: "no" } : { success: true });
+    const registry = new Registry().registerNode("t", { retryable: () => true, run: flaky });
+    const c = compile({ id: "f", nodes: [{ ...n("a"), retry: { attempts: 3, backoffMs: 1 } }], edges: [] });
+    expect((await runFlow(c, { registry }, )).ok).toBe(true);
+    expect(calls).toBe(2);
+  });
+
+  it('on: "none" never retries, and on: "all" retries anything', async () => {
+    let none = 0, all = 0;
+    const always: NodeRunner = async () => { return { success: false, error: "no" }; };
+    const cn = compile({ id: "f", nodes: [{ ...n("a"), retry: { attempts: 3, backoffMs: 1, on: "none" } }], edges: [] });
+    const rn = await runFlow(cn, deps({ t: async () => { none++; return { success: false, error: "no" }; } }));
+    expect(rn.ok).toBe(false);
+    expect(none).toBe(1);
+    const ca = compile({ id: "f", nodes: [{ ...n("a"), retry: { attempts: 3, backoffMs: 1, on: "all" } }], edges: [] });
+    const ra = await runFlow(ca, deps({ t: async () => { all++; return { success: false, error: "no" }; } }));
+    expect(ra.ok).toBe(false);
+    expect(all).toBe(3);
+  });
+
+  it("caps the backoff wait at maxBackoffMs", async () => {
+    let calls = 0;
+    const c = compile({ id: "f", nodes: [{ ...n("a"), retry: { attempts: 10, backoffMs: 10_000, maxBackoffMs: 50, on: "all" } }], edges: [] });
+    const start = performance.now();
+    const r = await runFlow(c, deps({ t: async () => { calls++; return { success: false, error: "no" }; } }));
+    const ms = performance.now() - start;
+    expect(r.ok).toBe(false);
+    expect(calls).toBe(10);
+    // Without the cap, 10 attempts would wait ~5000 seconds; with it, under a second.
+    expect(ms).toBeLessThan(1000);
+  });
+
+  it("stopDelayMs stops retrying before the attempts run out", async () => {
+    let calls = 0;
+    const c = compile({ id: "f", nodes: [{ ...n("a"), retry: { attempts: 10, backoffMs: 60, stopDelayMs: 40, on: "all" } }], edges: [] });
+    const start = performance.now();
+    const r = await runFlow(c, deps({ t: async () => { calls++; return { success: false, error: "no" }; } }));
+    expect(r.ok).toBe(false);
+    expect(calls).toBeLessThan(10);
+    expect(performance.now() - start).toBeGreaterThanOrEqual(30);
+  });
+
+  it("multiplier changes the backoff growth", async () => {
+    const runWith = async (multiplier: number) => {
+      const c = compile({ id: "f", nodes: [{ ...n("a"), retry: { attempts: 3, backoffMs: 10, multiplier, on: "all" } }], edges: [] });
+      const start = performance.now();
+      await runFlow(c, deps({ t: async () => ({ success: false, error: "no" }) }));
+      return performance.now() - start;
+    };
+    // Waits are 10+20 ms (x2) versus 10+40 ms (x4): the four-times run must take longer.
+    const twice = await runWith(2);
+    const four = await runWith(4);
+    expect(four).toBeGreaterThan(twice);
+    expect(four).toBeLessThan(500);
   });
 
   it("memoizes successful results when cache is on", async () => {

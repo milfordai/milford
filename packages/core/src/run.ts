@@ -60,12 +60,24 @@ export async function runFlow(compiled: CompiledFlow, deps: RunDeps, opts: RunOp
     const hit = key && deps.cache!.get(key);
     if (hit) return hit;
     const signal = node.timeoutMs === undefined ? runSignal : AbortSignal.any([runSignal, AbortSignal.timeout(node.timeoutMs)]);
-    const tries = Math.max(1, node.retry?.attempts ?? 1);
+    const policy = node.retry;
+    // `on` defaults to "infra": only failures the node type classifies as retryable.
+    const on = policy?.on ?? "infra";
+    const retry = (r: NodeResult) => policy !== undefined && (on === "all" || (on === "infra" && (deps.registry.nodes.get(node.type)?.retryable?.({ ...r }) ?? false)));
+    const wait = (attempt: number) => {
+      const base = (policy?.backoffMs ?? 200) * (policy?.multiplier ?? 2) ** (attempt - 1);
+      const capped = Math.min(base, policy?.maxBackoffMs ?? Infinity);
+      const jitter = policy?.jitterMs && capped > 0 ? Math.round((Math.random() * 2 - 1) * policy.jitterMs) : 0;
+      return Math.max(0, capped + jitter);
+    };
+    const started = Date.now();
+    const tries = Math.max(1, policy?.attempts ?? 1);
     let result: NodeResult = { success: false, error: "not run" };
     for (let i = 0; i < tries && !signal.aborted; i++) {
-      if (i > 0) await sleep((node.retry?.backoffMs ?? 200) * 2 ** (i - 1), signal);
+      if (i > 0) await sleep(wait(i), signal);
       result = await attempt(node, upstream, signal);
-      if (result.success) break;
+      if (result.success || !retry(result)) break;
+      if (policy?.stopDelayMs !== undefined && Date.now() - started >= policy.stopDelayMs) break;
     }
     if (result.success && key) deps.cache!.set(key, result);
     return result;
