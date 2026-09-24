@@ -445,6 +445,7 @@ components:
         startedAt: { type: string, format: date-time }
         ms: { type: integer }
         ok: { type: boolean }
+        caller: { type: string, description: "Hashed bearer token of the caller that saved the run, when the server has auth on. Only that caller can list or read it." }
         nodes:
           type: object
           description: The trace, keyed by node id.
@@ -483,6 +484,7 @@ components:
       required: [ok, runId, nodes]
       properties:
         ok: { type: boolean, description: False when any node failed. }
+        timedOut: { type: boolean, description: "True when the run was cut short by `run.timeoutMs`. Nodes that never started report status `error` with error `aborted`." }
         runId: { type: string }
         nodes:
           type: object

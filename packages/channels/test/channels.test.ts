@@ -63,6 +63,12 @@ describe("webhook", () => {
     expect((await send(body, sign(body, String(Math.floor(Date.now() / 1000) - 3600)))).status).toBe(401);
     expect((await send(body, {})).status).toBe(401);
   });
+  it("rejects a malformed signature with 401, never a crash", async () => {
+    const body = JSON.stringify({ text: "hi" });
+    expect((await send(body, { ...sign(body), "x-milford-signature": `sha256=${"é".repeat(64)}` })).status).toBe(401); // multibyte, not hex
+    expect((await send(body, { ...sign(body), "x-milford-signature": "sha256=deadbeef" })).status).toBe(401); // hex, wrong length
+    expect((await send(body, { ...sign(body), "x-milford-signature": "sha256" })).status).toBe(401); // empty digest
+  });
   it("rejects a signed body that is not a JSON object", async () => {
     expect((await send("[1]", sign("[1]"))).status).toBe(400);
     expect((await send("{", sign("{"))).status).toBe(400);
@@ -138,6 +144,26 @@ describe("telegram", () => {
     await until(() => mock.sent.length);
     await channel.stop();
     expect(mock.sent[0]!.text).toBe("Sorry, something went wrong.");
+  });
+
+  it("retries a message whose flow failed when the server redelivers it", async () => {
+    const sent: { chat_id: number; text: string }[] = [];
+    let polls = 0;
+    const update = msg(1, 42, "x");
+    const fetch = (async (url: string, init: RequestInit) => {
+      const method = url.split("/").pop();
+      if (method === "sendMessage") return (sent.push(JSON.parse(init.body as string)), new Response(JSON.stringify({ ok: true, result: {} })));
+      polls += 1;
+      // The redelivery is served only after the first attempt has replied, so it cannot race the retry mark.
+      if (polls === 2) await until(() => sent.length >= 1);
+      if (polls > 2) return new Promise<Response>((_, reject) => init.signal!.addEventListener("abort", () => reject(new Error("aborted")))); // idle poll: hang until the channel stops
+      return new Response(JSON.stringify({ ok: true, result: [update] }));
+    }) as unknown as typeof globalThis.fetch;
+    const channel = build({ ...config, flow: "boom" }, { fetch });
+    await channel.start();
+    await until(() => sent.length >= 2);
+    await channel.stop();
+    expect(sent.map((entry) => entry.text)).toEqual(["Sorry, something went wrong.", "Sorry, something went wrong."]);
   });
 
   it("keeps polling after a network error", async () => {

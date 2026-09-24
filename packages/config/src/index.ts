@@ -31,6 +31,9 @@ export const FlowSchema = z.object({
   edges: z.array(z.object({ from: z.string(), to: z.string(), when: Condition.optional() })),
 });
 
+/** Auth tokens: never empty or blank, because an empty token would authenticate requests that send no credentials. */
+const authTokens = z.array(z.string().min(1).refine((token) => token === token.trim(), { message: "must not have leading or trailing whitespace" })).default([]);
+
 export const ConfigSchema = z.object({
   providers: z.array(z.looseObject({
     id: z.string(),
@@ -51,7 +54,7 @@ export const ConfigSchema = z.object({
     transport: z.enum(["stdio", "http"]).default("stdio"),
     port: z.number().int().default(8090),
     host: z.string().default("0.0.0.0"),
-    auth: z.object({ tokens: z.array(z.string()).default([]) }).default({ tokens: [] }),
+    auth: z.object({ tokens: authTokens }).default({ tokens: [] }),
   }).default({ expose: [], transport: "stdio", port: 8090, host: "0.0.0.0", auth: { tokens: [] } }),
   /** Limits shared by the HTTP server, the MCP server and the channels. */
   run: z.object({
@@ -62,7 +65,7 @@ export const ConfigSchema = z.object({
   }).default({ timeoutMs: 60_000, maxConcurrentRuns: 64 }),
   server: z.object({
     port: z.number().int().default(8080),
-    auth: z.object({ tokens: z.array(z.string()).default([]) }).default({ tokens: [] }),
+    auth: z.object({ tokens: authTokens }).default({ tokens: [] }),
     /** How long a completed run is kept for `Idempotency-Key` replays. */
     idempotencyTtlMs: z.number().positive().default(600_000),
     /** Largest accepted request body. */

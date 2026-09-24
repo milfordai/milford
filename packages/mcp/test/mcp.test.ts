@@ -123,6 +123,15 @@ describe("streamable HTTP server", () => {
     expect((await fetch(`${base}/elsewhere`)).status).toBe(404);
   });
 
+  it("rejects empty tokens, and a body larger than the limit", async () => {
+    await expect(start(["  "])).rejects.toThrow(/empty or whitespace/);
+    const base = await start(["s3cret"]);
+    const big = "x".repeat(2_000_000);
+    expect((await fetch(`${base}/mcp`, { method: "POST", headers: { authorization: "Bearer s3cret" }, body: big })).status).toBe(413); // declared content-length
+    const stream = new ReadableStream({ start: (controller) => { controller.enqueue(new TextEncoder().encode(big)); controller.close(); } });
+    expect((await fetch(`${base}/mcp`, { method: "POST", headers: { authorization: "Bearer s3cret" }, body: stream, duplex: "half" } as RequestInit)).status).toBe(413); // streamed: no content-length
+  });
+
   it("lets a client with the token list and call tools over a real socket", async () => {
     const base = await start(["s3cret"]);
     const client = new Client({ name: "test", version: "0.0.0" });

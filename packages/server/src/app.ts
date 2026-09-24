@@ -1,13 +1,13 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import type { Channel } from "@milfordai/channels";
-import { INVALID_INPUT, TOO_MANY_RUNS, type Engine, type RunResult } from "@milfordai/core";
+import { canonical, INVALID_INPUT, TOO_MANY_RUNS, type Engine, type RunResult } from "@milfordai/core";
 import { Hono, type MiddlewareHandler } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { stream, streamSSE } from "hono/streaming";
 import type { StreamingApi } from "hono/utils/stream";
 import { createIdempotencyStore } from "./idempotency.js";
 import { buildOpenApi } from "./openapi.js";
-import { rateLimit, type RateLimitOptions } from "./rate-limit.js";
+import { callerKey, rateLimit, type RateLimitOptions } from "./rate-limit.js";
 import { memoryRunStore, summarize, toRecord, type RunStore } from "./runs.js";
 
 const digest = (value: string) => createHash("sha256").update(value).digest();
@@ -76,6 +76,10 @@ export type AppOptions = {
 
 /** HTTP surface over an Engine. */
 export function createApp({ engine, tokens = [], maxBodyBytes = 1_000_000, idempotencyTtlMs = 600_000, runs = memoryRunStore(), recordRuns = "trace", middleware = [], rateLimit: limitOptions, channels = [], log = console.log }: AppOptions): Hono {
+  if (tokens.some((token) => token.trim() === "")) {
+    throw new Error("auth tokens must not be empty or whitespace: an empty token would authenticate requests that send no credentials");
+  }
+
   const app = new Hono();
   const idempotent = createIdempotencyStore<RunResult>(idempotencyTtlMs);
   app.onError((error, context) => {
@@ -106,17 +110,22 @@ export function createApp({ engine, tokens = [], maxBodyBytes = 1_000_000, idemp
 
   // The spec lists every loaded flow with its input schema, so it needs the same token as the API.
   for (const handler of guard) app.use("/openapi.json", handler);
-  app.get("/openapi.json", (context) => context.json(buildOpenApi(engine.flows())));
+  // Built once: flows are frozen at engine creation, and rebuilding the spec per request blocked the event
+  // loop. An operation-name collision between flow ids fails here, at startup, instead of on every request.
+  const openApiJson = JSON.stringify(buildOpenApi(engine.flows()));
+  app.get("/openapi.json", (context) => context.body(openApiJson, 200, { "content-type": "application/json" }));
 
   app.get("/v1/flows", (context) => context.json({ flows: engine.flows() }));
 
+  // Run history is scoped to the caller: a valid token lists and reads its own runs, never another caller's.
   app.get("/v1/runs", (context) => {
     const limit = Math.min(Math.max(Number(context.req.query("limit")) || 50, 1), 500);
-    return context.json({ runs: runs.list({ flow: context.req.query("flow"), limit }).map(summarize) });
+    const caller = callerKey(context.req.header("authorization"));
+    return context.json({ runs: runs.list({ flow: context.req.query("flow"), limit, caller }).map(summarize) });
   });
   app.get("/v1/runs/:id", (context) => {
     const record = runs.get(context.req.param("id"));
-    return record ? context.json(record) : context.json({ error: `unknown run "${context.req.param("id")}"` }, 404);
+    return record && record.caller === callerKey(context.req.header("authorization")) ? context.json(record) : context.json({ error: `unknown run "${context.req.param("id")}"` }, 404);
   });
 
   /**
@@ -155,10 +164,11 @@ export function createApp({ engine, tokens = [], maxBodyBytes = 1_000_000, idemp
 
     const started = performance.now();
     const startedAt = new Date();
+    const caller = callerKey(context.req.header("authorization"));
     const control = context.req.header("cache-control") ?? "";
     const cache = /\bno-store\b/i.test(control) ? "off" : /\bno-cache\b/i.test(control) ? "refresh" : undefined;
     const done = (ok: boolean, runId?: string, cacheField?: string) => log(JSON.stringify({ level: "info", msg: "run", flow: model, ok, runId, cache: cacheField, ms: Math.round(performance.now() - started) }));
-    const save = (runResult: RunResult) => runResult.cache === "hit" || runs.save(toRecord(model, startedAt, performance.now() - started, runResult, input, recordRuns));
+    const save = (runResult: RunResult) => runResult.cache === "hit" || runs.save(toRecord(model, startedAt, performance.now() - started, runResult, input, recordRuns, caller));
 
     // The run happens before any streaming starts, so errors (busy, timeout, failing nodes) come back as
     // normal HTTP status codes instead of mid-stream surprises.
@@ -209,9 +219,17 @@ export function createApp({ engine, tokens = [], maxBodyBytes = 1_000_000, idemp
     const sse = !!context.req.header("accept")?.includes("text/event-stream");
 
     // Idempotency-Key applies to JSON runs only. Replays do not count against the concurrency cap.
+    // The key is namespaced by flow and caller: two callers using the same key must not see each other's runs.
     const requestKey = sse ? undefined : context.req.header("idempotency-key");
-    const idemKey = requestKey && `${id}\n${requestKey}`;
-    const fingerprint = JSON.stringify(input);
+    const caller = callerKey(context.req.header("authorization"));
+    const idemKey = requestKey && `${caller}\n${id}\n${requestKey}`;
+    // canonical() sorts keys, so the same request with its keys in a different order is still the same request.
+    let fingerprint: string;
+    try {
+      fingerprint = canonical(input);
+    } catch {
+      fingerprint = JSON.stringify(input); // an input too deep for canonical() still gets a raw fingerprint
+    }
     if (idemKey) {
       const hit = idempotent.get(idemKey);
       if (hit) {
@@ -224,7 +242,7 @@ export function createApp({ engine, tokens = [], maxBodyBytes = 1_000_000, idemp
     const started = performance.now();
     const startedAt = new Date();
     // A cache hit is an earlier run, not a new one, so it is not saved again.
-    const save = (runResult: RunResult) => runResult.cache === "hit" || runs.save(toRecord(id, startedAt, performance.now() - started, runResult, input, recordRuns));
+    const save = (runResult: RunResult) => runResult.cache === "hit" || runs.save(toRecord(id, startedAt, performance.now() - started, runResult, input, recordRuns, caller));
     const done = (ok: boolean, runId?: string, cache?: string) => log(JSON.stringify({ level: "info", msg: "run", flow: id, ok, runId, cache, ms: Math.round(performance.now() - started) }));
     // `no-cache` skips the lookup of a cached flow and refreshes it, `no-store` skips the cache altogether.
     const control = context.req.header("cache-control") ?? "";
@@ -252,7 +270,10 @@ export function createApp({ engine, tokens = [], maxBodyBytes = 1_000_000, idemp
       // A client that disconnected mid-run must not turn a failed write into an unhandled rejection.
       let writes: Promise<unknown> = Promise.resolve();
       const send = (event: string, data: unknown) => (writes = writes.then(() => streamApi.writeSSE({ event, data: JSON.stringify(data) })).catch(() => {}));
+      // A comment every 15 s keeps idle proxies and clients from closing the connection during a long run.
+      const heartbeat = setInterval(() => (writes = writes.then(() => streamApi.write(": keep-alive\n\n")).catch(() => {})), 15_000);
       const result = await engine.run(id, input, { signal: abort.signal, timeoutMs, onEvent: (event) => void send(event.type, event) });
+      clearInterval(heartbeat);
       done(result.ok && result.value.ok, result.ok ? result.value.runId : undefined);
       if (result.ok) save(result.value);
       await send("result", result.ok ? result.value : { error: result.error });

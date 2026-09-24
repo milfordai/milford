@@ -428,7 +428,7 @@ The full documentation is at **[milford.mintlify.site](https://milford.mintlify.
 
 ## Status
 
-Milford is at v0.0.1. The config format can still change. The Slack and Telegram adapters and the provider adapters are tested against mocked network calls, not live services, so try them with a test workspace and test keys first.
+Milford is at v0.0.3. The config format can still change. The Slack and Telegram adapters and the provider adapters are tested against mocked network calls, not live services, so try them with a test workspace and test keys first.
 
 ---
 
