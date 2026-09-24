@@ -78,18 +78,31 @@ export function createEngine(config: EngineConfig): Result<Engine> {
   for (const providerConfig of config.providers ?? []) {
     if (!providerConfig.fallback?.length) continue;
 
-    const fallbacks: Provider[] = [];
-
     for (const fallbackId of providerConfig.fallback) {
-      const provider = providers.get(fallbackId);
-
-      if (!provider) return { ok: false, error: `provider "${providerConfig.id}": unknown fallback "${fallbackId}"` };
-
-      fallbacks.push(provider);
+      if (!providers.get(fallbackId)) return { ok: false, error: `provider "${providerConfig.id}": unknown fallback "${fallbackId}"` };
     }
 
     if (hasCycle(providerConfig.id)) return { ok: false, error: `provider "${providerConfig.id}": fallback cycle detected` };
+  }
 
+  // Wrap deepest-first (post-order of the fallback graph), so a provider's fallback is already wrapped when
+  // the provider itself is wrapped, whatever order the config lists providers in.
+  const wrapOrder: ProviderConfig[] = [];
+  const ordered = new Set<string>();
+  const order = (providerId: string) => {
+    if (ordered.has(providerId)) return;
+    ordered.add(providerId);
+
+    const providerConfig = config.providers?.find((provider) => provider.id === providerId);
+    for (const fallbackId of providerConfig?.fallback ?? []) order(fallbackId);
+    if (providerConfig) wrapOrder.push(providerConfig);
+  };
+  for (const providerConfig of config.providers ?? []) order(providerConfig.id);
+
+  for (const providerConfig of wrapOrder) {
+    if (!providerConfig.fallback?.length) continue;
+
+    const fallbacks = providerConfig.fallback.map((fallbackId) => providers.get(fallbackId)!);
     providers.set(providerConfig.id, withFallback(providers.get(providerConfig.id)!, fallbacks));
   }
 
@@ -117,6 +130,8 @@ export function createEngine(config: EngineConfig): Result<Engine> {
   const versions = new Map<string, Promise<string>>();
   const version = (flow: Flow) => versions.get(flow.id) ?? versions.set(flow.id, sha256(canonical({ flow, providers: config.providers ?? [] }))).get(flow.id)!;
   let active = 0;
+  // Identical cached runs in flight share one execution, so a burst of the same request pays for one run.
+  const inFlight = new Map<string, Promise<RunResult>>();
   return {
     ok: true,
     value: {
@@ -132,12 +147,24 @@ export function createEngine(config: EngineConfig): Result<Engine> {
 
         const cachePolicy = compiledFlow.flow.cache;
         const useCache = cachePolicy && !opts.onEvent && opts.cache !== "off";
-        const cacheKey = useCache ? `${flowId}:${await version(compiledFlow.flow)}:${await sha256(canonical(input))}` : undefined;
+        // Input too deep to hash runs uncached instead of throwing.
+        let cacheKey: string | undefined;
+        if (useCache) {
+          try {
+            cacheKey = `${flowId}:${await version(compiledFlow.flow)}:${await sha256(canonical(input))}`;
+          } catch {
+            cacheKey = undefined;
+          }
+        }
 
-        // A hit skips the run, so it does not count against maxConcurrentRuns.
+        // A hit skips the run, so it does not count against maxConcurrentRuns. A run already in flight with
+        // the same key is shared the same way: one execution answers every identical concurrent request.
         if (cacheKey && opts.cache !== "refresh") {
           const hit = await runCache.get(cacheKey);
           if (hit) return { ok: true, value: { ...hit, cache: "hit" } };
+
+          const pending = inFlight.get(cacheKey);
+          if (pending) return { ok: true, value: { ...(await pending), cache: "hit" } };
         }
 
         if (active >= (config.maxConcurrentRuns ?? Infinity)) return { ok: false, error: TOO_MANY_RUNS };
@@ -145,7 +172,10 @@ export function createEngine(config: EngineConfig): Result<Engine> {
 
         try {
           const { cache: _ignored, ...run } = opts;
-          const result = await runFlow(compiledFlow, { registry: config.registry, providers, fetch: doFetch, cache }, { ...run, timeoutMs: opts.timeoutMs ?? config.timeoutMs, input });
+          const execution = runFlow(compiledFlow, { registry: config.registry, providers, fetch: doFetch, cache }, { ...run, timeoutMs: opts.timeoutMs ?? config.timeoutMs, input });
+          if (cacheKey) inFlight.set(cacheKey, execution);
+
+          const result = await execution;
 
           // Only successful runs are kept, so a failure is retried instead of replayed.
           if (cacheKey && result.ok) await runCache.set(cacheKey, result, cachePolicy!.ttlMs);
@@ -153,6 +183,7 @@ export function createEngine(config: EngineConfig): Result<Engine> {
           return { ok: true, value: cachePolicy ? { ...result, cache: "miss" } : result };
         } finally {
           active--;
+          if (cacheKey) inFlight.delete(cacheKey);
         }
       },
     },

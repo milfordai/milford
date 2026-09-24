@@ -1,3 +1,4 @@
+import { canonical, sha256 } from "./cache.js";
 import type { CompiledFlow } from "./compile.js";
 import { ProviderHub } from "./providers.js";
 import type { Registry } from "./registry.js";
@@ -35,8 +36,15 @@ const message = (error: unknown) => (error instanceof Error ? error.message : St
 /** Runs a compiled flow. Never throws: failures land in the per-node results. */
 export async function runFlow(compiled: CompiledFlow, deps: RunDeps, opts: RunOptions = {}): Promise<RunResult> {
   const runId = opts.runId ?? crypto.randomUUID();
-  const emit = (event: RunEvent) => opts.onEvent?.(event);
-  const runSignal = AbortSignal.any([opts.signal, opts.timeoutMs === undefined ? undefined : AbortSignal.timeout(opts.timeoutMs)].filter((signal): signal is AbortSignal => !!signal));
+  const emit = (event: RunEvent) => {
+    try {
+      opts.onEvent?.(event);
+    } catch {
+      // An event subscriber must not be able to fail the run it observes.
+    }
+  };
+  const timeoutSignal = opts.timeoutMs === undefined ? undefined : AbortSignal.timeout(opts.timeoutMs);
+  const runSignal = AbortSignal.any([opts.signal, timeoutSignal].filter((signal): signal is AbortSignal => !!signal));
   const hub = new ProviderHub(deps.providers ?? new Map(), runId, emit);
   const nodes: Record<string, NodeState> = {};
 
@@ -56,7 +64,16 @@ export async function runFlow(compiled: CompiledFlow, deps: RunDeps, opts: RunOp
   };
 
   const execute = async (node: Node, upstream: Record<string, NodeResult>): Promise<NodeResult> => {
-    const cacheKey = node.cache && deps.cache ? `${node.type}:${JSON.stringify(node.config)}:${JSON.stringify(upstream)}` : undefined;
+    // The key covers the flow, the node, its config, its upstream results and the run input: two runs with
+    // different input must never share a memoized result.
+    let cacheKey: string | undefined;
+    if (node.cache && deps.cache) {
+      try {
+        cacheKey = `${compiled.flow.id}:${node.id}:${await sha256(canonical({ config: node.config, upstream, input: opts.input }))}`;
+      } catch {
+        cacheKey = undefined; // too deeply nested to key: run without memoization
+      }
+    }
     const hit = cacheKey && deps.cache!.get(cacheKey);
     if (hit) return hit;
 
@@ -73,7 +90,7 @@ export async function runFlow(compiled: CompiledFlow, deps: RunDeps, opts: RunOp
     };
     const started = Date.now();
     const tries = Math.max(1, policy?.attempts ?? 1);
-    let result: NodeResult = { success: false, error: "not run" };
+    let result: NodeResult = { success: false, error: signal.aborted ? "aborted" : "not run" };
     for (let index = 0; index < tries && !signal.aborted; index++) {
       if (index > 0) await sleep(wait(index), signal);
       result = await attempt(node, upstream, signal);
@@ -118,5 +135,6 @@ export async function runFlow(compiled: CompiledFlow, deps: RunDeps, opts: RunOp
     runId,
     nodes,
     output: outNode && nodes[outNode.id]!.result,
+    ...(timeoutSignal?.aborted && { timedOut: true }),
   };
 }
