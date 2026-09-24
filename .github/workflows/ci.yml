@@ -17,3 +17,10 @@ jobs:
       - run: pnpm build
       - run: pnpm typecheck
       - run: pnpm test
+      # Fast tier (MIL-69): the black-box suite gates every pull request. It starts the built
+      # server from packages/server/dist and tests it over HTTP.
+      - name: End-to-end suite (fast tier)
+        run: |
+          cd test
+          pnpm install --frozen-lockfile
+          pnpm test
