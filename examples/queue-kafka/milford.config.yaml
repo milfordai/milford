@@ -1,0 +1,21 @@
+# yaml-language-server: $schema=../../packages/config/milford.config.schema.json
+# Queue consumption example: every message on the `orders` topic runs the `process-order` flow.
+# A JSON object message body becomes the flow input directly. Needs only the one-command local
+# broker from README.md. No providers, no API key.
+flows:
+  - { file: ./process-order.yaml }
+queues:
+  - id: orders
+    type: kafka
+    flow: process-order
+    brokers: ["localhost:9092"]
+    topics: [orders]
+    groupId: milford-orders
+    # Messages rejected after the retries ran out are produced here; delete the line to drop them instead.
+    deadLetterTopic: orders.dlq
+    # Redeliver a failing message after 1s, then 2s; dead-letter it after the third delivery.
+    retry: { attempts: 3, backoffMs: 1000, multiplier: 2 }
+    # Two messages processed at once (order within a topic partition is always preserved).
+    concurrency: 2
+server:
+  port: 8080

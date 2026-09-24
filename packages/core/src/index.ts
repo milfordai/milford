@@ -5,6 +5,7 @@ export * from "./registry.js";
 export * from "./template.js";
 export * from "./cache.js";
 export * from "./providers.js";
+export * from "./message-bus.js";
 export * from "./resilience.js";
 export * from "./engine.js";
 export * from "./builder.js";
