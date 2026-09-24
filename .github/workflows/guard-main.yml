@@ -1,0 +1,28 @@
+name: Guard Main
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  guard-main:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce merge sources into main
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          case "$HEAD_REF" in
+            dev|release/*|hotfix/*)
+              echo "OK: merges into main from '$HEAD_REF' are allowed."
+              exit 0
+              ;;
+            *)
+              echo "ERROR: merges into main must come from dev, release/*, or hotfix/* (got '$HEAD_REF')."
+              exit 1
+              ;;
+          esac
