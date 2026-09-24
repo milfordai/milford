@@ -15,27 +15,27 @@ const config = z.object({
 
 /** Any JSON endpoint, such as a local classifier: request template in, JSONPath mapping out. */
 export const http: ProviderFactory = (raw, { fetch }) => {
-  const p = config.safeParse(raw);
-  if (!p.success) return err(p.error.message);
-  const c = p.data;
+  const parsed = config.safeParse(raw);
+  if (!parsed.success) return err(parsed.error.message);
+  const settings = parsed.data;
   return {
     ok: true,
     value: {
       id: raw.id,
       type: "http",
-      capabilities: c.capabilities as Capability[],
-      async decide(req) {
-        const body = renderDeep(c.request, req);
+      capabilities: settings.capabilities as Capability[],
+      async decide(request) {
+        const body = renderDeep(settings.request, request);
         if (!body.ok) return body;
-        const r = await postJson(fetch, c.url, c.headers, body.value, req.signal);
-        return r.ok ? decisionFrom(req, r.value, c.map) : r;
+        const result = await postJson(fetch, settings.url, settings.headers, body.value, request.signal);
+        return result.ok ? decisionFrom(request, result.value, settings.map) : result;
       },
-      async chat(req) {
-        const body = renderDeep(c.request, req);
+      async chat(request) {
+        const body = renderDeep(settings.request, request);
         if (!body.ok) return body;
-        const r = await postJson(fetch, c.url, c.headers, body.value, req.signal);
-        if (!r.ok) return r;
-        const text = c.map.text ? jsonPath(r.value, c.map.text) : undefined;
+        const result = await postJson(fetch, settings.url, settings.headers, body.value, request.signal);
+        if (!result.ok) return result;
+        const text = settings.map.text ? jsonPath(result.value, settings.map.text) : undefined;
         return typeof text === "string" ? { ok: true, value: { text } } : err("response had no text");
       },
     },

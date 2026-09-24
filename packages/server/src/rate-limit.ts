@@ -15,22 +15,22 @@ export type RateLimitOptions = {
  * A caller is its bearer token (hashed), or the first `X-Forwarded-For` address, or one shared bucket.
  * Put it after authentication, so only valid tokens get a bucket.
  */
-export function rateLimit(o: RateLimitOptions, now: () => number = Date.now): MiddlewareHandler {
-  const burst = o.burst ?? Math.max(1, Math.ceil(o.perSecond));
-  const max = o.maxCallers ?? 10_000;
+export function rateLimit(options: RateLimitOptions, now: () => number = Date.now): MiddlewareHandler {
+  const burst = options.burst ?? Math.max(1, Math.ceil(options.perSecond));
+  const max = options.maxCallers ?? 10_000;
   const buckets = new Map<string, { tokens: number; last: number }>();
-  return async (c, next) => {
-    const auth = c.req.header("authorization")?.replace(/^Bearer /i, "");
-    const key = auth ? `t:${createHash("sha256").update(auth).digest("hex")}` : `ip:${c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ?? "-"}`;
-    const t = now();
-    const b = buckets.get(key) ?? { tokens: burst, last: t };
+  return async (context, next) => {
+    const auth = context.req.header("authorization")?.replace(/^Bearer /i, "");
+    const key = auth ? `t:${createHash("sha256").update(auth).digest("hex")}` : `ip:${context.req.header("x-forwarded-for")?.split(",")[0]?.trim() ?? "-"}`;
+    const current = now();
+    const bucket = buckets.get(key) ?? { tokens: burst, last: current };
     buckets.delete(key);
-    b.tokens = Math.min(burst, b.tokens + ((t - b.last) / 1000) * o.perSecond);
-    b.last = t;
-    buckets.set(key, b); // most recently seen last
+    bucket.tokens = Math.min(burst, bucket.tokens + ((current - bucket.last) / 1000) * options.perSecond);
+    bucket.last = current;
+    buckets.set(key, bucket); // most recently seen last
     if (buckets.size > max) buckets.delete(buckets.keys().next().value!);
-    if (b.tokens < 1) return c.json({ error: "rate limit exceeded" }, 429, { "retry-after": String(Math.ceil((1 - b.tokens) / o.perSecond)) });
-    b.tokens -= 1;
+    if (bucket.tokens < 1) return context.json({ error: "rate limit exceeded" }, 429, { "retry-after": String(Math.ceil((1 - bucket.tokens) / options.perSecond)) });
+    bucket.tokens -= 1;
     return next();
   };
 }

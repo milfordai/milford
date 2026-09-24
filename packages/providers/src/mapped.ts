@@ -15,23 +15,24 @@ export const mapSchema = z.object({
 });
 export type Mapping = z.infer<typeof mapSchema>;
 
-export function decisionFrom(req: DecideRequest, res: unknown, map: Mapping): Result<Decision> {
-  const at = (p?: string) => (p ? jsonPath(res, p) : undefined);
+export function decisionFrom(request: DecideRequest, response: unknown, map: Mapping): Result<Decision> {
+  const at = (path?: string) => (path ? jsonPath(response, path) : undefined);
   let probabilities = at(map.probabilities) as Record<string, number> | number[] | undefined;
   if (Array.isArray(probabilities)) {
-    const opts = req.options ?? [];
-    if (probabilities.length !== opts.length) return err("probabilities do not line up with the options");
-    probabilities = Object.fromEntries(opts.map((o, i) => [o, (probabilities as number[])[i]!]));
+    const options = request.options ?? [];
+    if (probabilities.length !== options.length) return err("probabilities do not line up with the options");
+    probabilities = Object.fromEntries(options.map((option, index) => [option, (probabilities as number[])[index]!]));
   }
-  const num = (v: unknown) => (typeof v === "number" ? v : undefined);
-  if (req.kind === "choice") {
+
+  const num = (value: unknown) => (typeof value === "number" ? value : undefined);
+  if (request.kind === "choice") {
     let choice = at(map.choice) as string | undefined;
-    if (choice === undefined && probabilities) choice = Object.entries(probabilities).sort((a, b) => b[1] - a[1])[0]?.[0];
+    if (choice === undefined && probabilities) choice = Object.entries(probabilities).sort((entryA, entryB) => entryB[1] - entryA[1])[0]?.[0];
     if (choice === undefined) return err("response had no choice");
     const confidence = num(at(map.confidence)) ?? (probabilities ? probabilities[choice] : undefined);
     return { ok: true, value: { kind: "choice", choice, probabilities: probabilities as Record<string, number> | undefined, confidence } };
   }
-  if (req.kind === "score") {
+  if (request.kind === "score") {
     const score = num(at(map.score));
     return score === undefined ? err("response had no score") : { ok: true, value: { kind: "score", score, probabilities: probabilities as Record<string, number> | undefined, confidence: num(at(map.confidence)) } };
   }

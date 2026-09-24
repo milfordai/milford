@@ -3,12 +3,12 @@ import type { Capability, ChatRequest, DecideRequest, Decision, Provider, Provid
 /** Composite provider: tries `primary`, then each fallback in order. */
 export function withFallback(primary: Provider, fallbacks: Provider[]): Provider {
   const chain = [primary, ...fallbacks];
-  const first = async <T>(cap: Capability, call: (p: Provider) => Promise<Result<T>> | undefined): Promise<Result<T>> => {
-    let last: Result<T> = { ok: false, error: `no provider can ${cap}` };
-    for (const p of chain) {
-      const r = call(p);
-      if (!r) continue;
-      last = await r;
+  const first = async <T>(capability: Capability, call: (provider: Provider) => Promise<Result<T>> | undefined): Promise<Result<T>> => {
+    let last: Result<T> = { ok: false, error: `no provider can ${capability}` };
+    for (const provider of chain) {
+      const result = call(provider);
+      if (!result) continue;
+      last = await result;
       if (last.ok) return last;
     }
     return last;
@@ -16,22 +16,24 @@ export function withFallback(primary: Provider, fallbacks: Provider[]): Provider
   const composite: Provider = {
     id: primary.id,
     type: primary.type,
-    capabilities: [...new Set(chain.flatMap((p) => p.capabilities))],
-    chat: (req: ChatRequest) => first("chat", (p) => p.chat?.(req)),
-    decide: (req: DecideRequest) => first("decide", (p) => p.decide?.(req)),
+    capabilities: [...new Set(chain.flatMap((provider) => provider.capabilities))],
+    chat: (request: ChatRequest) => first("chat", (provider) => provider.chat?.(request)),
+    decide: (request: DecideRequest) => first("decide", (provider) => provider.decide?.(request)),
   };
-  if (primary.decideMany)
-    composite.decideMany = async (reqs) => {
-      const r = await primary.decideMany!(reqs);
-      if (r.ok) return r;
-      const each = await Promise.all(reqs.map((q) => composite.decide!(q)));
-      const bad = each.find((x) => !x.ok);
-      return bad && !bad.ok ? bad : { ok: true, value: each.map((x) => (x as { ok: true; value: Decision }).value) };
+  if (primary.decideMany) {
+    composite.decideMany = async (requests) => {
+      const result = await primary.decideMany!(requests);
+      if (result.ok) return result;
+
+      const results = await Promise.all(requests.map((request) => composite.decide!(request)));
+      const failed = results.find((item) => !item.ok);
+      return failed && !failed.ok ? failed : { ok: true, value: results.map((item) => (item as { ok: true; value: Decision }).value) };
     };
+  }
   return composite;
 }
 
-type Pending = { req: DecideRequest; resolve: (r: Result<Decision>) => void };
+type Pending = { request: DecideRequest; resolve: (result: Result<Decision>) => void };
 
 /**
  * Per-run gateway to providers. Decisions issued in the same tick to a provider that has
@@ -39,52 +41,54 @@ type Pending = { req: DecideRequest; resolve: (r: Result<Decision>) => void };
  */
 export class ProviderHub {
   private queues = new Map<string, Pending[]>();
-  constructor(private providers: Map<string, Provider>, private runId: string, private emit: (e: RunEvent) => void) {}
+  constructor(private providers: Map<string, Provider>, private runId: string, private emit: (event: RunEvent) => void) {}
 
   access(nodeId: string): ProviderAccess {
     const timed = async <T>(id: string, capability: Capability, call: () => Promise<Result<T>>) => {
       const start = performance.now();
-      const r = await call();
-      this.emit({ type: "provider:call", runId: this.runId, nodeId, provider: id, capability, ok: r.ok, ms: performance.now() - start });
-      return r;
+      const result = await call();
+      this.emit({ type: "provider:call", runId: this.runId, nodeId, provider: id, capability, ok: result.ok, ms: performance.now() - start });
+      return result;
     };
-    const get = (id: string, cap: Capability): Result<Provider> => {
-      const p = this.providers.get(id);
-      if (!p) return { ok: false, error: `unknown provider "${id}"` };
-      return p.capabilities.includes(cap) ? { ok: true, value: p } : { ok: false, error: `provider "${id}" cannot ${cap}` };
+    const get = (id: string, capability: Capability): Result<Provider> => {
+      const provider = this.providers.get(id);
+      if (!provider) return { ok: false, error: `unknown provider "${id}"` };
+      return provider.capabilities.includes(capability) ? { ok: true, value: provider } : { ok: false, error: `provider "${id}" cannot ${capability}` };
     };
     return {
-      chat: (id, req) => {
-        const p = get(id, "chat");
-        return p.ok ? timed(id, "chat", () => p.value.chat!(req)) : Promise.resolve(p);
+      chat: (id, request) => {
+        const provider = get(id, "chat");
+        return provider.ok ? timed(id, "chat", () => provider.value.chat!(request)) : Promise.resolve(provider);
       },
-      decide: (id, req) => {
-        const p = get(id, "decide");
-        return p.ok ? timed(id, "decide", () => this.decide(p.value, req)) : Promise.resolve(p);
+      decide: (id, request) => {
+        const provider = get(id, "decide");
+        return provider.ok ? timed(id, "decide", () => this.decide(provider.value, request)) : Promise.resolve(provider);
       },
     };
   }
 
-  private decide(p: Provider, req: DecideRequest): Promise<Result<Decision>> {
-    if (!p.decideMany) return p.decide!(req);
+  private decide(provider: Provider, request: DecideRequest): Promise<Result<Decision>> {
+    if (!provider.decideMany) return provider.decide!(request);
     return new Promise((resolve) => {
-      let q = this.queues.get(p.id);
-      if (!q) {
-        q = [];
-        this.queues.set(p.id, q);
-        queueMicrotask(() => void this.flush(p));
+      let queue = this.queues.get(provider.id);
+      if (!queue) {
+        queue = [];
+        this.queues.set(provider.id, queue);
+        queueMicrotask(() => void this.flush(provider));
       }
-      q.push({ req, resolve });
+      queue.push({ request, resolve });
     });
   }
 
-  private async flush(p: Provider) {
-    const batch = this.queues.get(p.id)!;
-    this.queues.delete(p.id);
+  private async flush(provider: Provider) {
+    const batch = this.queues.get(provider.id)!;
+    this.queues.delete(provider.id);
     if (batch.length > 1) {
-      const r = await p.decideMany!(batch.map((b) => b.req));
-      if (r.ok && r.value.length === batch.length) return batch.forEach((b, i) => b.resolve({ ok: true, value: r.value[i]! }));
+      const result = await provider.decideMany!(batch.map((item) => item.request));
+      if (result.ok && result.value.length === batch.length) {
+        return batch.forEach((item, index) => item.resolve({ ok: true, value: result.value[index]! }));
+      }
     }
-    await Promise.all(batch.map(async (b) => b.resolve(await p.decide!(b.req))));
+    await Promise.all(batch.map(async (item) => item.resolve(await provider.decide!(item.request))));
   }
 }

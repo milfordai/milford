@@ -11,18 +11,18 @@ const TOLERANCE_S = 300;
  * `x-milford-signature: sha256=<hex HMAC-SHA256(secret, "<timestamp>.<raw body>")>`.
  * The JSON body becomes the flow input; the response carries the flow output.
  */
-export function webhook(cfg: z.infer<typeof webhookConfig>, deps: ChannelDeps): Channel {
+export function webhook(config: z.infer<typeof webhookConfig>, deps: ChannelDeps): Channel {
   const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
   return {
-    id: cfg.id,
+    id: config.id,
     type: "webhook",
     start: async () => {},
     stop: async () => {},
-    async handle(req) {
-      const raw = await req.text();
-      const ts = req.headers.get("x-milford-timestamp") ?? "";
-      const given = (req.headers.get("x-milford-signature") ?? "").replace(/^sha256=/, "");
-      const want = createHmac("sha256", cfg.secret).update(`${ts}.${raw}`).digest("hex");
+    async handle(request) {
+      const raw = await request.text();
+      const ts = request.headers.get("x-milford-timestamp") ?? "";
+      const given = (request.headers.get("x-milford-signature") ?? "").replace(/^sha256=/, "");
+      const want = createHmac("sha256", config.secret).update(`${ts}.${raw}`).digest("hex");
       const fresh = Math.abs(Date.now() / 1000 - Number(ts)) <= TOLERANCE_S;
       const valid = given.length === want.length && timingSafeEqual(Buffer.from(given), Buffer.from(want));
       if (!fresh || !valid) return json({ error: "invalid signature" }, 401);
@@ -34,9 +34,10 @@ export function webhook(cfg: z.infer<typeof webhookConfig>, deps: ChannelDeps): 
         return json({ error: "body must be JSON" }, 400);
       }
       if (typeof input !== "object" || input === null || Array.isArray(input)) return json({ error: "body must be a JSON object" }, 400);
-      const r = await deps.engine.run(cfg.flow, input as Record<string, unknown>, { signal: req.signal });
-      if (!r.ok) return json({ error: r.error }, r.error === TOO_MANY_RUNS ? 503 : 500);
-      return json({ ok: r.value.ok, runId: r.value.runId, output: r.value.output?.output, data: r.value.output?.data });
+
+      const result = await deps.engine.run(config.flow, input as Record<string, unknown>, { signal: request.signal });
+      if (!result.ok) return json({ error: result.error }, result.error === TOO_MANY_RUNS ? 503 : 500);
+      return json({ ok: result.value.ok, runId: result.value.runId, output: result.value.output?.output, data: result.value.output?.data });
     },
   };
 }

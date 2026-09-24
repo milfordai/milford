@@ -37,79 +37,120 @@ export type Engine = {
 };
 
 /** Builds providers, compiles every flow once (failing fast on bad config), and returns a runner. */
-export function createEngine(cfg: EngineConfig): Result<Engine> {
-  const doFetch = cfg.fetch ?? fetch;
+export function createEngine(config: EngineConfig): Result<Engine> {
+  const doFetch = config.fetch ?? fetch;
   const providers = new Map<string, Provider>();
-  for (const pc of cfg.providers ?? []) {
-    if (providers.has(pc.id)) return { ok: false, error: `duplicate provider id "${pc.id}"` };
-    const factory = cfg.registry.providerTypes.get(pc.type);
-    if (!factory) return { ok: false, error: `provider "${pc.id}": unknown type "${pc.type}"` };
-    const p = factory(pc, { fetch: doFetch });
-    if (!p.ok) return { ok: false, error: `provider "${pc.id}": ${p.error}` };
+  for (const providerConfig of config.providers ?? []) {
+    if (providers.has(providerConfig.id)) return { ok: false, error: `duplicate provider id "${providerConfig.id}"` };
+
+    const factory = config.registry.providerTypes.get(providerConfig.type);
+    if (!factory) return { ok: false, error: `provider "${providerConfig.id}": unknown type "${providerConfig.type}"` };
+
+    const result = factory(providerConfig, { fetch: doFetch });
+    if (!result.ok) return { ok: false, error: `provider "${providerConfig.id}": ${result.error}` };
+
     // Rate limit innermost, breaker outside it, so a tripped circuit fails fast without queueing.
-    let wrapped = p.value;
-    if (pc.rateLimit) wrapped = withRateLimit(wrapped, pc.rateLimit);
-    if (pc.circuitBreaker) wrapped = withBreaker(wrapped, pc.circuitBreaker);
-    providers.set(pc.id, wrapped);
-  }
-  for (const pc of cfg.providers ?? []) {
-    if (!pc.fallback?.length) continue;
-    const fb: Provider[] = [];
-    for (const id of pc.fallback) {
-      const p = providers.get(id);
-      if (!p) return { ok: false, error: `provider "${pc.id}": unknown fallback "${id}"` };
-      fb.push(p);
-    }
-    providers.set(pc.id, withFallback(providers.get(pc.id)!, fb));
+    let provider = result.value;
+    if (providerConfig.rateLimit) provider = withRateLimit(provider, providerConfig.rateLimit);
+    if (providerConfig.circuitBreaker) provider = withBreaker(provider, providerConfig.circuitBreaker);
+    providers.set(providerConfig.id, provider);
   }
 
-  const caps: ProviderCaps = new Map([...providers].map(([id, p]) => [id, p.capabilities]));
+  // Detect cycles in the provider fallback graph by walking every fallback path.
+  const hasCycle = (startProviderId: string): boolean => {
+    const visit = (providerId: string, seen: Set<string>): boolean => {
+      if (seen.has(providerId)) return true;
+
+      seen.add(providerId);
+
+      const providerConfig = config.providers?.find((provider) => provider.id === providerId);
+
+      for (const fallbackId of providerConfig?.fallback ?? []) {
+        if (visit(fallbackId, new Set(seen))) return true;
+      }
+
+      return false;
+    };
+
+    return visit(startProviderId, new Set());
+  };
+
+  for (const providerConfig of config.providers ?? []) {
+    if (!providerConfig.fallback?.length) continue;
+
+    const fallbacks: Provider[] = [];
+
+    for (const fallbackId of providerConfig.fallback) {
+      const provider = providers.get(fallbackId);
+
+      if (!provider) return { ok: false, error: `provider "${providerConfig.id}": unknown fallback "${fallbackId}"` };
+
+      fallbacks.push(provider);
+    }
+
+    if (hasCycle(providerConfig.id)) return { ok: false, error: `provider "${providerConfig.id}": fallback cycle detected` };
+
+    providers.set(providerConfig.id, withFallback(providers.get(providerConfig.id)!, fallbacks));
+  }
+
+  const caps: ProviderCaps = new Map([...providers].map(([providerId, provider]) => [providerId, provider.capabilities]));
   const compiled = new Map<string, CompiledFlow>();
   const inputs = new Map<string, z.ZodType>();
-  for (const f of cfg.flows ?? []) {
-    const c = compileFlow(f, cfg.registry, caps);
-    if (!c.ok) return { ok: false, error: `flow "${f.id}": ${c.error}` };
-    compiled.set(f.id, c.value);
-    if (f.input) {
+  for (const flow of config.flows ?? []) {
+    const result = compileFlow(flow, config.registry, caps);
+    if (!result.ok) return { ok: false, error: `flow "${flow.id}": ${result.error}` };
+
+    compiled.set(flow.id, result.value);
+
+    if (flow.input) {
       try {
-        inputs.set(f.id, z.fromJSONSchema(f.input as z.core.JSONSchema.JSONSchema));
-      } catch (e) {
-        return { ok: false, error: `flow "${f.id}": input is not a valid JSON Schema: ${(e as Error).message}` };
+        inputs.set(flow.id, z.fromJSONSchema(flow.input as z.core.JSONSchema.JSONSchema));
+      } catch (error) {
+        return { ok: false, error: `flow "${flow.id}": input is not a valid JSON Schema: ${(error as Error).message}` };
       }
     }
   }
 
   const cache = lruCache();
-  const runCache = cfg.runCache ?? memoryRunCache();
+  const runCache = config.runCache ?? memoryRunCache();
   // What a cached result depends on besides the input: the flow and the provider config (which model, which prompt).
   const versions = new Map<string, Promise<string>>();
-  const version = (f: Flow) => versions.get(f.id) ?? versions.set(f.id, sha256(canonical({ flow: f, providers: cfg.providers ?? [] }))).get(f.id)!;
+  const version = (flow: Flow) => versions.get(flow.id) ?? versions.set(flow.id, sha256(canonical({ flow, providers: config.providers ?? [] }))).get(flow.id)!;
   let active = 0;
   return {
     ok: true,
     value: {
-      flows: () => [...compiled.values()].map(({ flow: f }) => ({ id: f.id, nodes: f.nodes.length, description: f.description, input: f.input })),
+      flows: () => [...compiled.values()].map(({ flow }) => ({ id: flow.id, nodes: flow.nodes.length, description: flow.description, input: flow.input })),
       async run(flowId, input = {}, opts = {}) {
-        const c = compiled.get(flowId);
-        if (!c) return { ok: false, error: `unknown flow "${flowId}"` };
-        const bad = inputs.get(flowId)?.safeParse(input);
-        if (bad && !bad.success) return { ok: false, error: `${INVALID_INPUT}: ${bad.error.issues.map((i) => `${i.path.join(".") || "input"}: ${i.message}`).join("; ")}` };
-        const policy = c.flow.cache;
-        const useCache = policy && !opts.onEvent && opts.cache !== "off";
-        const key = useCache ? `${flowId}:${await version(c.flow)}:${await sha256(canonical(input))}` : undefined;
+        const compiledFlow = compiled.get(flowId);
+        if (!compiledFlow) return { ok: false, error: `unknown flow "${flowId}"` };
+
+        const parsed = inputs.get(flowId)?.safeParse(input);
+        if (parsed && !parsed.success) {
+          return { ok: false, error: `${INVALID_INPUT}: ${parsed.error.issues.map((issue) => `${issue.path.join(".") || "input"}: ${issue.message}`).join("; ")}` };
+        }
+
+        const cachePolicy = compiledFlow.flow.cache;
+        const useCache = cachePolicy && !opts.onEvent && opts.cache !== "off";
+        const cacheKey = useCache ? `${flowId}:${await version(compiledFlow.flow)}:${await sha256(canonical(input))}` : undefined;
+
         // A hit skips the run, so it does not count against maxConcurrentRuns.
-        if (key && opts.cache !== "refresh") {
-          const hit = await runCache.get(key);
+        if (cacheKey && opts.cache !== "refresh") {
+          const hit = await runCache.get(cacheKey);
           if (hit) return { ok: true, value: { ...hit, cache: "hit" } };
         }
-        if (active >= (cfg.maxConcurrentRuns ?? Infinity)) return { ok: false, error: TOO_MANY_RUNS };
+
+        if (active >= (config.maxConcurrentRuns ?? Infinity)) return { ok: false, error: TOO_MANY_RUNS };
         active++;
+
         try {
           const { cache: _ignored, ...run } = opts;
-          const value = await runFlow(c, { registry: cfg.registry, providers, fetch: doFetch, cache }, { ...run, timeoutMs: opts.timeoutMs ?? cfg.timeoutMs, input });
+          const result = await runFlow(compiledFlow, { registry: config.registry, providers, fetch: doFetch, cache }, { ...run, timeoutMs: opts.timeoutMs ?? config.timeoutMs, input });
+
           // Only successful runs are kept, so a failure is retried instead of replayed.
-          if (key && value.ok) await runCache.set(key, value, policy!.ttlMs);
-          return { ok: true, value: policy ? { ...value, cache: "miss" } : value };
+          if (cacheKey && result.ok) await runCache.set(cacheKey, result, cachePolicy!.ttlMs);
+
+          return { ok: true, value: cachePolicy ? { ...result, cache: "miss" } : result };
         } finally {
           active--;
         }

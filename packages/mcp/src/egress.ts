@@ -12,26 +12,26 @@ const fail = (error: string) => ({ success: false as const, error });
  * Returns `close` to shut the connections down.
  */
 export function registerMcp(registry: Registry, servers: McpServerConfig[]): { close(): Promise<void> } {
-  const byId = new Map(servers.map((s) => [s.id, s]));
+  const byId = new Map(servers.map((server) => [server.id, server]));
   const clients = new Map<string, Promise<Client>>();
 
-  const connect = (s: McpServerConfig): Promise<Client> => {
-    let p = clients.get(s.id);
-    if (!p) {
-      p = (async () => {
-        const c = new Client({ name: "milford", version: "0.0.3" });
-        await c.connect(new StreamableHTTPClientTransport(new URL(s.url), { requestInit: { headers: s.headers ?? {} } }));
-        return c;
+  const connect = (server: McpServerConfig): Promise<Client> => {
+    let pending = clients.get(server.id);
+    if (!pending) {
+      pending = (async () => {
+        const client = new Client({ name: "milford", version: "0.0.3" });
+        await client.connect(new StreamableHTTPClientTransport(new URL(server.url), { requestInit: { headers: server.headers ?? {} } }));
+        return client;
       })();
-      clients.set(s.id, p);
+      clients.set(server.id, pending);
     }
-    return p;
+    return pending;
   };
   /** Forget a connection after an error so the next call reconnects. */
   const drop = (id: string) => {
-    const p = clients.get(id);
+    const pending = clients.get(id);
     clients.delete(id);
-    void p?.then((c) => c.close()).catch(() => {});
+    void pending?.then((client) => client.close()).catch(() => {});
   };
 
   const config = z
@@ -42,25 +42,27 @@ export function registerMcp(registry: Registry, servers: McpServerConfig[]): { c
       /** Tools this node may call. Required when `tool` is a template. */
       allow: z.array(z.string()).optional(),
     })
-    .refine((c) => !c.tool.includes("{{") || c.allow?.length, { message: "a templated tool needs an allow list of tool names", path: ["allow"] });
+    .refine((parsed) => !parsed.tool.includes("{{") || parsed.allow?.length, { message: "a templated tool needs an allow list of tool names", path: ["allow"] });
 
   const node: NodeDef<z.infer<typeof config>> = {
     configSchema: config,
-    async run(ctx, up) {
-      const scope = scopeOf(ctx.input, up);
-      const tool = render(ctx.config.tool, scope);
-      if (!tool.ok) return fail(tool.error);
-      if (ctx.config.allow && !ctx.config.allow.includes(tool.value)) return fail(`tool "${tool.value}" is not in the allow list`);
-      const args = renderDeep(ctx.config.arguments, scope);
-      if (!args.ok) return fail(args.error);
+    async run(ctx, upstream) {
+      const scope = scopeOf(ctx.input, upstream);
+      const renderedTool = render(ctx.config.tool, scope);
+      if (!renderedTool.ok) return fail(renderedTool.error);
+      if (ctx.config.allow && !ctx.config.allow.includes(renderedTool.value)) return fail(`tool "${renderedTool.value}" is not in the allow list`);
+
+      const renderedArgs = renderDeep(ctx.config.arguments, scope);
+      if (!renderedArgs.ok) return fail(renderedArgs.error);
 
       const server = byId.get(ctx.config.server)!;
       try {
         const client = await connect(server);
-        const r = await client.callTool({ name: tool.value, arguments: args.value as Record<string, unknown> }, { signal: ctx.signal });
-        const text = ((r.content ?? []) as { type: string; text?: string }[]).flatMap((b) => (b.type === "text" && b.text !== undefined ? [b.text] : [])).join("\n");
-        if (r.isError) return fail(text || `tool "${tool.value}" failed`);
-        let data: unknown = r.structuredContent;
+        const result = await client.callTool({ name: renderedTool.value, arguments: renderedArgs.value as Record<string, unknown> }, { signal: ctx.signal });
+        const text = ((result.content ?? []) as { type: string; text?: string }[]).flatMap((block) => (block.type === "text" && block.text !== undefined ? [block.text] : [])).join("\n");
+        if (result.isError) return fail(text || `tool "${renderedTool.value}" failed`);
+
+        let data: unknown = result.structuredContent;
         if (data === undefined) {
           try {
             data = JSON.parse(text);
@@ -69,12 +71,12 @@ export function registerMcp(registry: Registry, servers: McpServerConfig[]): { c
           }
         }
         return { success: true, output: text, data };
-      } catch (e) {
+      } catch (error) {
         drop(server.id);
-        return fail(e instanceof Error ? e.message : String(e));
+        return fail(error instanceof Error ? error.message : String(error));
       }
     },
   };
   registry.registerNode("mcp", node);
-  return { close: async () => void (await Promise.all([...clients.keys()].map((id) => clients.get(id)!.then((c) => c.close()).catch(() => {})))) };
+  return { close: async () => void (await Promise.all([...clients.keys()].map((id) => clients.get(id)!.then((client) => client.close()).catch(() => {})))) };
 }

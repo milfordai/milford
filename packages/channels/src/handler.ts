@@ -10,33 +10,36 @@ export type HandlerOptions = { id: string; type: string; engine: Engine; flow: s
  * Shared behaviour of chat channels: allowlist (deny by default), redelivery dedup, and a reply that never
  * leaks internal errors. Never throws.
  */
-export function createHandler(o: HandlerOptions) {
+export function createHandler(options: HandlerOptions) {
   const seen = new Set<string>();
-  const log = (level: string, msg: string, extra: object = {}) => o.log(JSON.stringify({ level, msg, channel: o.id, ...extra }));
+  const log = (level: string, message: string, extra: object = {}) => options.log(JSON.stringify({ level, msg: message, channel: options.id, ...extra }));
 
-  return async (msg: InboundMessage, reply: (text: string) => Promise<void>): Promise<void> => {
-    if (!o.allow.includes(msg.user)) return log("warn", "message from a user who is not allowed", { user: msg.user });
-    if (msg.id) {
-      if (seen.has(msg.id)) return;
-      seen.add(msg.id);
+  return async (message: InboundMessage, reply: (text: string) => Promise<void>): Promise<void> => {
+    if (!options.allow.includes(message.user)) return log("warn", "message from a user who is not allowed", { user: message.user });
+
+    if (message.id) {
+      if (seen.has(message.id)) return;
+      seen.add(message.id);
       if (seen.size > SEEN_MAX) seen.delete(seen.values().next().value!);
     }
+
     const send = async (text: string) => {
       try {
         await reply(text.length > MAX_REPLY ? `${text.slice(0, MAX_REPLY)}...` : text);
-      } catch (e) {
-        log("error", "reply failed", { error: e instanceof Error ? e.message : String(e) });
+      } catch (error) {
+        log("error", "reply failed", { error: error instanceof Error ? error.message : String(error) });
       }
     };
     try {
-      const r = await o.engine.run(o.flow, { text: msg.text, user: msg.user, conversation: msg.conversation, channel: o.type });
-      if (!r.ok && r.error === TOO_MANY_RUNS) return send("Busy, try again shortly.");
-      const ok = r.ok && r.value.ok;
-      log(ok ? "info" : "error", "run", { flow: o.flow, ok, runId: r.ok ? r.value.runId : undefined, error: r.ok ? undefined : r.error });
-      const text = ok ? (r.value as { output?: { output?: string } }).output?.output : "Sorry, something went wrong.";
+      const result = await options.engine.run(options.flow, { text: message.text, user: message.user, conversation: message.conversation, channel: options.type });
+      if (!result.ok && result.error === TOO_MANY_RUNS) return send("Busy, try again shortly.");
+
+      const ok = result.ok && result.value.ok;
+      log(ok ? "info" : "error", "run", { flow: options.flow, ok, runId: result.ok ? result.value.runId : undefined, error: result.ok ? undefined : result.error });
+      const text = ok ? (result.value as { output?: { output?: string } }).output?.output : "Sorry, something went wrong.";
       if (text) await send(text);
-    } catch (e) {
-      log("error", "run crashed", { error: e instanceof Error ? e.message : String(e) });
+    } catch (error) {
+      log("error", "run crashed", { error: error instanceof Error ? error.message : String(error) });
     }
   };
 }

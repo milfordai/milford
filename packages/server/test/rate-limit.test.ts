@@ -1,13 +1,13 @@
 import { createEngine, defaultRegistry } from "@milfordai/core";
 import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
-import { createApp } from "./app.js";
-import { rateLimit } from "./rate-limit.js";
+import { createApp } from "../src/app.js";
+import { rateLimit } from "../src/rate-limit.js";
 
-const limited = (o: Parameters<typeof rateLimit>[0], clock: { t: number }) => {
+const limited = (options: Parameters<typeof rateLimit>[0], clock: { t: number }) => {
   const app = new Hono();
-  app.use("*", rateLimit(o, () => clock.t));
-  app.get("/", (c) => c.text("ok"));
+  app.use("*", rateLimit(options, () => clock.t));
+  app.get("/", (context) => context.text("ok"));
   return app;
 };
 const get = (app: Hono, token?: string, headers: Record<string, string> = {}) => app.request("/", { headers: { ...(token && { authorization: `Bearer ${token}` }), ...headers } });
@@ -16,11 +16,11 @@ describe("rateLimit", () => {
   it("allows a burst, then answers 429 with Retry-After, and refills over time", async () => {
     const clock = { t: 0 };
     const app = limited({ perSecond: 2, burst: 3 }, clock);
-    expect((await Promise.all([get(app, "a"), get(app, "a"), get(app, "a")])).map((r) => r.status)).toEqual([200, 200, 200]);
-    const over = await get(app, "a");
-    expect(over.status).toBe(429);
-    expect(over.headers.get("retry-after")).toBe("1");
-    expect(await over.json()).toEqual({ error: "rate limit exceeded" });
+    expect((await Promise.all([get(app, "a"), get(app, "a"), get(app, "a")])).map((response) => response.status)).toEqual([200, 200, 200]);
+    const overLimit = await get(app, "a");
+    expect(overLimit.status).toBe(429);
+    expect(overLimit.headers.get("retry-after")).toBe("1");
+    expect(await overLimit.json()).toEqual({ error: "rate limit exceeded" });
     clock.t += 500; // one token back at 2 per second
     expect((await get(app, "a")).status).toBe(200);
     expect((await get(app, "a")).status).toBe(429);
@@ -40,7 +40,7 @@ describe("rateLimit", () => {
   it("tells callers apart by X-Forwarded-For when there is no token, and forgets the oldest callers", async () => {
     const clock = { t: 0 };
     const app = limited({ perSecond: 1, burst: 1, maxCallers: 2 }, clock);
-    const ip = (a: string) => get(app, undefined, { "x-forwarded-for": `${a}, 10.0.0.1` });
+    const ip = (address: string) => get(app, undefined, { "x-forwarded-for": `${address}, 10.0.0.1` });
     expect((await ip("1.1.1.1")).status).toBe(200);
     expect((await ip("1.1.1.1")).status).toBe(429);
     expect((await ip("2.2.2.2")).status).toBe(200);
@@ -60,7 +60,7 @@ describe("createApp hooks", () => {
       engine: engine.value,
       tokens: ["t"],
       log: () => {},
-      middleware: [async (c, next) => { seen.push("hook"); if (c.req.header("x-block")) return c.json({ error: "blocked" }, 418); await next(); }],
+      middleware: [async (context, next) => { seen.push("hook"); if (context.req.header("x-block")) return context.json({ error: "blocked" }, 418); await next(); }],
     });
     expect((await call(app)).status).toBe(200);
     expect(seen).toEqual(["hook"]);
@@ -76,7 +76,7 @@ describe("createApp hooks", () => {
     expect([(await call(app, "a")).status, (await call(app, "a")).status, (await call(app, "a")).status]).toEqual([200, 200, 429]);
     expect((await call(app, "b")).status).toBe(200);
     expect((await app.request("/openapi.json", { headers: { authorization: "Bearer a" } })).status).toBe(429); // same bucket as /v1
-    for (let i = 0; i < 5; i++) expect((await call(app, "wrong")).status).toBe(401); // invalid tokens are not counted
+    for (let index = 0; index < 5; index++) expect((await call(app, "wrong")).status).toBe(401); // invalid tokens are not counted
     expect((await app.request("/health")).status).toBe(200);
   });
 });

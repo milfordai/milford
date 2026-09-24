@@ -2,11 +2,11 @@ import { createEngine, defaultRegistry, type Engine, type Flow } from "@milforda
 import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
 import { createMcpHandler } from "@modelcontextprotocol/server";
 import { afterEach, describe, expect, it } from "vitest";
-import { serveHttp } from "./http.js";
-import { createMcpFactory } from "./server.js";
+import { serveHttp } from "../src/http.js";
+import { createMcpFactory } from "../src/server.js";
 
 let release!: () => void;
-const gate = new Promise<void>((r) => (release = r));
+const gate = new Promise<void>((resolve) => (release = resolve));
 
 const flows: Flow[] = [
   {
@@ -27,10 +27,10 @@ const registry = defaultRegistry()
 const engine = createEngine({ registry, flows });
 if (!engine.ok) throw new Error(engine.error);
 
-const factoryFor = (e: Engine = engine.value) => {
-  const f = createMcpFactory(e, { expose: ["shout", "boom", "slow"], log: () => {} });
-  if (!f.ok) throw new Error(f.error);
-  return f.value;
+const factoryFor = (target: Engine = engine.value) => {
+  const result = createMcpFactory(target, { expose: ["shout", "boom", "slow"], log: () => {} });
+  if (!result.ok) throw new Error(result.error);
+  return result.value;
 };
 
 const open: { close(): Promise<unknown> }[] = [];
@@ -41,15 +41,15 @@ afterEach(async () => {
 const connect = async (factory = factoryFor()) => {
   const handler = createMcpHandler(factory);
   const client = new Client({ name: "test", version: "0.0.0" });
-  await client.connect(new StreamableHTTPClientTransport(new URL("http://test.local/mcp"), { fetch: (u, i) => handler.fetch(new Request(u, i as RequestInit)) }));
+  await client.connect(new StreamableHTTPClientTransport(new URL("http://test.local/mcp"), { fetch: (url, init) => handler.fetch(new Request(url, init as RequestInit)) }));
   open.push(client, handler);
   return client;
 };
 
 describe("createMcpFactory", () => {
-  const err = (o: object) => {
-    const r = createMcpFactory(engine.value, { log: () => {}, expose: [], ...o });
-    return r.ok ? "ok" : r.error;
+  const err = (options: object) => {
+    const result = createMcpFactory(engine.value, { log: () => {}, expose: [], ...options });
+    return result.ok ? "ok" : result.error;
   };
   it("exposes nothing by default and rejects unknown flows and invalid tool names", () => {
     expect(err({})).toMatch(/mcp.expose is empty/);
@@ -61,35 +61,35 @@ describe("createMcpFactory", () => {
 describe("tools", () => {
   it("lists only the exposed flows, with the flow's description and input schema", async () => {
     const tools = (await (await connect()).listTools()).tools;
-    expect(tools.map((t) => t.name).sort()).toEqual(["boom", "shout", "slow"]); // "secret" is not exposed
-    const shout = tools.find((t) => t.name === "shout")!;
+    expect(tools.map((tool) => tool.name).sort()).toEqual(["boom", "shout", "slow"]); // "secret" is not exposed
+    const shout = tools.find((tool) => tool.name === "shout")!;
     expect(shout.description).toBe("Upper-case the text.");
     expect(shout.inputSchema).toMatchObject({ required: ["text"], properties: { text: { description: "What to shout" } } });
-    expect(tools.find((t) => t.name === "boom")!.description).toBe('Run the "boom" flow.');
+    expect(tools.find((tool) => tool.name === "boom")!.description).toBe('Run the "boom" flow.');
   });
 
   it("runs a flow and returns the typed result", async () => {
-    const r = await (await connect()).callTool({ name: "shout", arguments: { text: "hi" } });
-    expect(r.isError).toBeFalsy();
-    expect(r.structuredContent).toMatchObject({ ok: true, output: "hi!" });
-    expect(JSON.parse((r.content as { text: string }[])[0]!.text)).toMatchObject({ output: "hi!" });
+    const result = await (await connect()).callTool({ name: "shout", arguments: { text: "hi" } });
+    expect(result.isError).toBeFalsy();
+    expect(result.structuredContent).toMatchObject({ ok: true, output: "hi!" });
+    expect(JSON.parse((result.content as { text: string }[])[0]!.text)).toMatchObject({ output: "hi!" });
   });
 
   it("rejects arguments that break the flow's input schema without running it", async () => {
-    const r = await (await connect()).callTool({ name: "shout", arguments: { text: 5 } });
-    expect(r.isError).toBe(true);
-    expect(JSON.stringify(r.content)).toMatch(/text/);
+    const result = await (await connect()).callTool({ name: "shout", arguments: { text: 5 } });
+    expect(result.isError).toBe(true);
+    expect(JSON.stringify(result.content)).toMatch(/text/);
   });
 
   it("returns node errors as an error result the model can read", async () => {
-    const r = await (await connect()).callTool({ name: "boom", arguments: {} });
-    expect(r.isError).toBe(true);
-    expect(r.structuredContent).toMatchObject({ ok: false, errors: ["f: kaboom"] });
+    const result = await (await connect()).callTool({ name: "boom", arguments: {} });
+    expect(result.isError).toBe(true);
+    expect(result.structuredContent).toMatchObject({ ok: false, errors: ["f: kaboom"] });
   });
 
   it("cannot call a flow that is not exposed", async () => {
-    const r = await (await connect()).callTool({ name: "secret", arguments: {} }).catch((e: Error) => ({ isError: true, content: [{ text: e.message }] }));
-    expect(r.isError).toBe(true);
+    const result = await (await connect()).callTool({ name: "secret", arguments: {} }).catch((error: Error) => ({ isError: true, content: [{ text: error.message }] }));
+    expect(result.isError).toBe(true);
   });
 
   it("sheds load when too many runs are active", async () => {
@@ -97,7 +97,7 @@ describe("tools", () => {
     if (!capped.ok) throw new Error(capped.error);
     const client = await connect(factoryFor(capped.value));
     const first = client.callTool({ name: "slow", arguments: {} });
-    await new Promise((r) => setTimeout(r, 30));
+    await new Promise((resolve) => setTimeout(resolve, 30));
     const second = await client.callTool({ name: "slow", arguments: {} });
     expect(second.isError).toBe(true);
     expect(JSON.stringify(second.content)).toMatch(/too many concurrent runs/);
@@ -108,10 +108,10 @@ describe("tools", () => {
 
 describe("streamable HTTP server", () => {
   const start = async (tokens: string[]) => {
-    const http = serveHttp(factoryFor(), { port: 0, host: "127.0.0.1", tokens });
-    open.push(http);
-    if (!http.server.listening) await new Promise((r) => http.server.once("listening", r));
-    const { port } = http.server.address() as { port: number };
+    const httpServer = serveHttp(factoryFor(), { port: 0, host: "127.0.0.1", tokens });
+    open.push(httpServer);
+    if (!httpServer.server.listening) await new Promise((resolve) => httpServer.server.once("listening", resolve));
+    const { port } = httpServer.server.address() as { port: number };
     return `http://127.0.0.1:${port}`;
   };
 
@@ -128,7 +128,7 @@ describe("streamable HTTP server", () => {
     const client = new Client({ name: "test", version: "0.0.0" });
     await client.connect(new StreamableHTTPClientTransport(new URL(`${base}/mcp`), { requestInit: { headers: { authorization: "Bearer s3cret" } } }));
     open.push(client);
-    expect((await client.listTools()).tools.map((t) => t.name)).toContain("shout");
+    expect((await client.listTools()).tools.map((tool) => tool.name)).toContain("shout");
     expect((await client.callTool({ name: "shout", arguments: { text: "ok" } })).structuredContent).toMatchObject({ output: "ok!" });
   });
 });

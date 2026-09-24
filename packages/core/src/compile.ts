@@ -15,58 +15,63 @@ export type ProviderCaps = Map<string, Capability[]>;
 /** Validates the graph (and, with a registry, every node) and precomputes execution levels (Kahn's algorithm). */
 export function compileFlow(flow: Flow, registry?: Registry, caps?: ProviderCaps): Result<CompiledFlow> {
   const byId = new Map<string, Node>();
-  for (const n of flow.nodes) {
-    if (byId.has(n.id)) return { ok: false, error: `duplicate node id "${n.id}"` };
-    byId.set(n.id, n);
+  for (const node of flow.nodes) {
+    if (byId.has(node.id)) return { ok: false, error: `duplicate node id "${node.id}"` };
+    byId.set(node.id, node);
   }
-  const incoming = new Map<string, Edge[]>(flow.nodes.map((n) => [n.id, []]));
-  const outgoing = new Map<string, string[]>(flow.nodes.map((n) => [n.id, []]));
-  for (const e of flow.edges) {
-    if (!byId.has(e.from) || !byId.has(e.to)) return { ok: false, error: `edge ${e.from} -> ${e.to} references an unknown node` };
-    incoming.get(e.to)!.push(e);
-    outgoing.get(e.from)!.push(e.to);
+
+  const incoming = new Map<string, Edge[]>(flow.nodes.map((node) => [node.id, []]));
+  const outgoing = new Map<string, string[]>(flow.nodes.map((node) => [node.id, []]));
+  for (const edge of flow.edges) {
+    if (!byId.has(edge.from) || !byId.has(edge.to)) return { ok: false, error: `edge ${edge.from} -> ${edge.to} references an unknown node` };
+    incoming.get(edge.to)!.push(edge);
+    outgoing.get(edge.from)!.push(edge.to);
   }
 
   const configs = new Map<string, unknown>();
   if (registry) {
-    for (const n of flow.nodes) {
-      const def = registry.nodes.get(n.type);
-      if (!def) return { ok: false, error: `node "${n.id}": unknown node type "${n.type}"` };
-      let config: unknown = n.config ?? {};
+    for (const node of flow.nodes) {
+      const def = registry.nodes.get(node.type);
+      if (!def) return { ok: false, error: `node "${node.id}": unknown node type "${node.type}"` };
+
+      let config: unknown = node.config ?? {};
       if (def.configSchema) {
-        const p = def.configSchema.safeParse(config);
-        if (!p.success) {
-          const why = p.error.issues.map((i) => `${i.path.join(".") || "config"}: ${i.message}`).join("; ");
-          return { ok: false, error: `node "${n.id}" (${n.type}): ${why}` };
+        const parsed = def.configSchema.safeParse(config);
+        if (!parsed.success) {
+          const why = parsed.error.issues.map((issue) => `${issue.path.join(".") || "config"}: ${issue.message}`).join("; ");
+          return { ok: false, error: `node "${node.id}" (${node.type}): ${why}` };
         }
-        config = p.data;
+        config = parsed.data;
       }
-      configs.set(n.id, config);
-      const need = caps && def.requires?.(config);
-      if (need) {
-        const have = caps!.get(need.provider);
-        if (!have) return { ok: false, error: `node "${n.id}": unknown provider "${need.provider}"` };
-        if (!have.includes(need.capability)) return { ok: false, error: `node "${n.id}": provider "${need.provider}" cannot ${need.capability}` };
+      configs.set(node.id, config);
+
+      const requirement = caps && def.requires?.(config);
+      if (requirement) {
+        const capabilities = caps!.get(requirement.provider);
+        if (!capabilities) return { ok: false, error: `node "${node.id}": unknown provider "${requirement.provider}"` };
+        if (!capabilities.includes(requirement.capability)) return { ok: false, error: `node "${node.id}": provider "${requirement.provider}" cannot ${requirement.capability}` };
       }
     }
   }
 
   const levels: Node[][] = [];
-  const pending = new Map([...incoming].map(([id, es]) => [id, es.length]));
-  let ready = flow.nodes.filter((n) => pending.get(n.id) === 0);
+  const pending = new Map([...incoming].map(([nodeId, edges]) => [nodeId, edges.length]));
+  let ready = flow.nodes.filter((node) => pending.get(node.id) === 0);
   let seen = 0;
   while (ready.length) {
     levels.push(ready);
     seen += ready.length;
     const next: Node[] = [];
-    for (const n of ready)
-      for (const to of outgoing.get(n.id)!) {
-        const left = pending.get(to)! - 1;
-        pending.set(to, left);
-        if (left === 0) next.push(byId.get(to)!);
+    for (const node of ready) {
+      for (const target of outgoing.get(node.id)!) {
+        const remaining = pending.get(target)! - 1;
+        pending.set(target, remaining);
+        if (remaining === 0) next.push(byId.get(target)!);
       }
+    }
     ready = next;
   }
   if (seen !== flow.nodes.length) return { ok: false, error: "flow contains a cycle" };
+
   return { ok: true, value: { flow, levels, incoming, configs } };
 }

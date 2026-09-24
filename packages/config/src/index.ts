@@ -86,40 +86,42 @@ export type Config = z.infer<typeof ConfigSchema>;
 /** Replaces `${VAR}` in every string. Unset variables are collected and reported together. */
 export function interpolate(value: unknown, env: Record<string, string | undefined>, missing: Set<string> = new Set()): unknown {
   if (typeof value === "string") return value.replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (_, name: string) => (env[name] ?? (missing.add(name), "")));
-  if (Array.isArray(value)) return value.map((v) => interpolate(v, env, missing));
-  if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, interpolate(v, env, missing)]));
+  if (Array.isArray(value)) return value.map((item) => interpolate(item, env, missing));
+  if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, interpolate(item, env, missing)]));
   return value;
 }
 
 export type Loaded = { config: Config; providers: ProviderConfig[]; flows: Flow[] };
 
 /** Parses YAML text (flow files may be YAML or JSON), interpolates env vars, validates, and reads the referenced flow files (relative to `baseDir`). */
-export function parseConfig(text: string, baseDir: string, env: Record<string, string | undefined> = process.env, readFile: (p: string) => string = (p) => readFileSync(p, "utf8")): Result<Loaded> {
+export function parseConfig(text: string, baseDir: string, env: Record<string, string | undefined> = process.env, readFile: (path: string) => string = (path) => readFileSync(path, "utf8")): Result<Loaded> {
   let raw: unknown;
   try {
     raw = parse(text) ?? {};
-  } catch (e) {
-    return { ok: false, error: `config is not valid YAML: ${(e as Error).message}` };
+  } catch (error) {
+    return { ok: false, error: `config is not valid YAML: ${(error as Error).message}` };
   }
   const missing = new Set<string>();
   const filled = interpolate(raw, env, missing);
   if (missing.size) return { ok: false, error: `environment variables not set: ${[...missing].join(", ")}` };
+
   const parsed = ConfigSchema.safeParse(filled);
-  if (!parsed.success) return { ok: false, error: `invalid config: ${parsed.error.issues.map((i) => `${i.path.join(".") || "config"}: ${i.message}`).join("; ")}` };
+  if (!parsed.success) return { ok: false, error: `invalid config: ${parsed.error.issues.map((issue) => `${issue.path.join(".") || "config"}: ${issue.message}`).join("; ")}` };
 
   const flows: Flow[] = [];
-  for (const f of parsed.data.flows) {
-    const file = resolve(baseDir, f.file);
+  for (const flowRef of parsed.data.flows) {
+    const file = resolve(baseDir, flowRef.file);
     let json: unknown;
     try {
       json = parse(readFile(file)); // JSON is valid YAML, so existing .json flows keep working
-    } catch (e) {
-      return { ok: false, error: `flow file ${f.file}: ${(e as Error).message}` };
+    } catch (error) {
+      return { ok: false, error: `flow file ${flowRef.file}: ${(error as Error).message}` };
     }
-    const flow = FlowSchema.safeParse(f.id ? { id: f.id, ...(json as object) } : json);
-    if (!flow.success) return { ok: false, error: `flow file ${f.file}: ${flow.error.issues.map((i) => `${i.path.join(".") || "flow"}: ${i.message}`).join("; ")}` };
-    flows.push(flow.data as Flow);
+    const parsedFlow = FlowSchema.safeParse(flowRef.id ? { id: flowRef.id, ...(json as object) } : json);
+    if (!parsedFlow.success) return { ok: false, error: `flow file ${flowRef.file}: ${parsedFlow.error.issues.map((issue) => `${issue.path.join(".") || "flow"}: ${issue.message}`).join("; ")}` };
+    flows.push(parsedFlow.data as Flow);
   }
+
   // A new object, because the defaults zod fills in are shared between parses.
   const { server } = parsed.data;
   const config = { ...parsed.data, server: { ...server, runs: { ...server.runs, path: resolve(baseDir, server.runs.path) } } };
@@ -129,7 +131,7 @@ export function parseConfig(text: string, baseDir: string, env: Record<string, s
 export function loadConfig(path: string, env: Record<string, string | undefined> = process.env): Result<Loaded> {
   try {
     return parseConfig(readFileSync(path, "utf8"), dirname(resolve(path)), env);
-  } catch (e) {
-    return { ok: false, error: `cannot read config ${path}: ${(e as Error).message}` };
+  } catch (error) {
+    return { ok: false, error: `cannot read config ${path}: ${(error as Error).message}` };
   }
 }

@@ -6,34 +6,34 @@ const config = z.object({ apiKey: z.string().optional(), baseUrl: z.string().def
 
 /** OpenAI, and any OpenAI-compatible server (Groq, Perplexity, local) through `baseUrl`. */
 export const openai: ProviderFactory = (raw, { fetch }) => {
-  const p = config.safeParse(raw);
-  if (!p.success) return err(p.error.message);
-  const c = p.data;
+  const parsed = config.safeParse(raw);
+  if (!parsed.success) return err(parsed.error.message);
+  const settings = parsed.data;
   const call = (model: string | undefined, messages: unknown[], extra: object, signal?: AbortSignal) => {
-    const m = model ?? c.model;
-    if (!m) return Promise.resolve(err("no model set on the provider or the request"));
-    return postJson(fetch, `${c.baseUrl.replace(/\/$/, "")}/chat/completions`, c.apiKey ? { authorization: `Bearer ${c.apiKey}` } : {}, { model: m, messages, ...extra }, signal);
+    const resolvedModel = model ?? settings.model;
+    if (!resolvedModel) return Promise.resolve(err("no model set on the provider or the request"));
+    return postJson(fetch, `${settings.baseUrl.replace(/\/$/, "")}/chat/completions`, settings.apiKey ? { authorization: `Bearer ${settings.apiKey}` } : {}, { model: resolvedModel, messages, ...extra }, signal);
   };
-  const content = (r: any): string | undefined => r?.choices?.[0]?.message?.content;
+  const content = (response: any): string | undefined => response?.choices?.[0]?.message?.content;
   return {
     ok: true,
     value: {
       id: raw.id,
       type: "openai",
       capabilities: ["chat", "decide"],
-      async chat(req) {
-        const messages = [...(req.system ? [{ role: "system", content: req.system }] : []), { role: "user", content: req.prompt }];
-        const r = await call(req.model, messages, {}, req.signal);
-        if (!r.ok) return r;
-        const text = content(r.value);
+      async chat(request) {
+        const messages = [...(request.system ? [{ role: "system", content: request.system }] : []), { role: "user", content: request.prompt }];
+        const result = await call(request.model, messages, {}, request.signal);
+        if (!result.ok) return result;
+        const text = content(result.value);
         return text === undefined ? err("response had no content") : { ok: true, value: { text } };
       },
-      async decide(req) {
-        const messages = [{ role: "system", content: DECISION_SYSTEM }, { role: "user", content: decisionPrompt(req) }];
-        const r = await call(req.model, messages, { response_format: { type: "json_schema", json_schema: { name: "decision", strict: true, schema: decisionSchema(req) } } }, req.signal);
-        if (!r.ok) return r;
+      async decide(request) {
+        const messages = [{ role: "system", content: DECISION_SYSTEM }, { role: "user", content: decisionPrompt(request) }];
+        const result = await call(request.model, messages, { response_format: { type: "json_schema", json_schema: { name: "decision", strict: true, schema: decisionSchema(request) } } }, request.signal);
+        if (!result.ok) return result;
         try {
-          return parseDecision(req, JSON.parse(content(r.value) ?? ""));
+          return parseDecision(request, JSON.parse(content(result.value) ?? ""));
         } catch {
           return err("decision was not valid JSON");
         }
