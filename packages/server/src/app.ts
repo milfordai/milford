@@ -3,7 +3,8 @@ import type { Channel } from "@milfordai/channels";
 import { INVALID_INPUT, TOO_MANY_RUNS, type Engine, type RunResult } from "@milfordai/core";
 import { Hono, type MiddlewareHandler } from "hono";
 import { bodyLimit } from "hono/body-limit";
-import { streamSSE } from "hono/streaming";
+import { stream, streamSSE } from "hono/streaming";
+import type { StreamingApi } from "hono/utils/stream";
 import { createIdempotencyStore } from "./idempotency.js";
 import { buildOpenApi } from "./openapi.js";
 import { rateLimit, type RateLimitOptions } from "./rate-limit.js";
@@ -20,6 +21,35 @@ function runTimeout(header: string | undefined): number | undefined {
   const ms = Number(header);
   return Number.isInteger(ms) && ms >= 1 && ms <= MAX_RUN_TIMEOUT_MS ? ms : NaN;
 }
+
+/** OpenAI-compatible error envelope, so OpenAI SDK clients can read `error.message`. */
+const openaiError = (message: string, type: "invalid_request_error" | "server_error") => ({ error: { message, type, param: null, code: null } });
+
+const now = () => Math.floor(Date.now() / 1000);
+
+/** A `chat.completion` response built from the output node of a finished run. */
+const chatCompletion = (model: string, runId: string, content: string) => ({
+  id: `chatcmpl-${runId}`,
+  object: "chat.completion",
+  created: now(),
+  model,
+  choices: [{ index: 0, message: { role: "assistant", content }, finish_reason: "stop" }],
+  usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+});
+
+/** A `chat.completion.chunk` delta for OpenAI-style SSE. */
+const chatChunk = (id: string, model: string, delta: { role?: string; content?: string; finish?: string }) => {
+  const d: Record<string, string> = {};
+  if (delta.role !== undefined) d.role = delta.role;
+  if (delta.content !== undefined) d.content = delta.content;
+  return {
+    id,
+    object: "chat.completion.chunk",
+    created: now(),
+    model,
+    choices: [{ index: 0, delta: d, finish_reason: delta.finish ?? null }],
+  };
+};
 
 export type AppOptions = {
   engine: Engine;
@@ -85,6 +115,69 @@ export function createApp({ engine, tokens = [], maxBodyBytes = 1_000_000, idemp
   app.get("/v1/runs/:id", (c) => {
     const r = runs.get(c.req.param("id"));
     return r ? c.json(r) : c.json({ error: `unknown run "${c.req.param("id")}"` }, 404);
+  });
+
+  /**
+   * An OpenAI-compatible subset of `POST /chat/completions`. The `model` field is the id of a loaded flow;
+   * the request runs that flow with `input = { model, messages, prompt }`, where `prompt` is the content of
+   * the last user message, and the output node's text becomes the assistant message. `stream: true` returns
+   * OpenAI-style SSE chunks ending with `[DONE]`. Extra OpenAI fields (`temperature`, `max_tokens`, ...) are
+   * accepted and ignored: the flow controls behaviour. Embeddings and tool calls are deferred.
+   */
+  app.post("/v1/chat/completions", async (c) => {
+    let body: Record<string, unknown>;
+    try {
+      body = JSON.parse((await c.req.text()) || "{}") as Record<string, unknown>;
+    } catch {
+      return c.json(openaiError("body must be JSON", "invalid_request_error"), 400);
+    }
+    if (typeof body !== "object" || Array.isArray(body)) return c.json(openaiError("body must be an object", "invalid_request_error"), 400);
+    const model = body.model;
+    if (typeof model !== "string" || !model) return c.json(openaiError("model is required and must be the id of a loaded flow", "invalid_request_error"), 400);
+    const isMessage = (m: unknown): m is { role: string; content: string } =>
+      !!m && typeof m === "object" && typeof (m as Record<string, unknown>).role === "string" && typeof (m as Record<string, unknown>).content === "string";
+    if (!Array.isArray(body.messages) || !body.messages.every(isMessage))
+      return c.json(openaiError("messages must be an array of { role, content } objects", "invalid_request_error"), 400);
+    if (body.stream !== undefined && typeof body.stream !== "boolean")
+      return c.json(openaiError("stream must be a boolean", "invalid_request_error"), 400);
+    if (!engine.flows().some((f) => f.id === model)) return c.json(openaiError(`model "${model}" is not a loaded flow`, "invalid_request_error"), 404);
+    const timeoutMs = runTimeout(c.req.header("x-milford-timeout-ms"));
+    if (Number.isNaN(timeoutMs))
+      return c.json(openaiError(`X-Milford-Timeout-Ms must be a whole number of milliseconds from 1 to ${MAX_RUN_TIMEOUT_MS}`, "invalid_request_error"), 400);
+    const streamRequest = body.stream === true;
+    const lastUser = [...(body.messages as { role: string; content: string }[])].reverse().find((m) => m.role === "user");
+    const input = { model, messages: body.messages, prompt: lastUser?.content ?? "" };
+
+    const started = performance.now();
+    const startedAt = new Date();
+    const control = c.req.header("cache-control") ?? "";
+    const cache = /\bno-store\b/i.test(control) ? "off" : /\bno-cache\b/i.test(control) ? "refresh" : undefined;
+    const done = (ok: boolean, runId?: string, cacheField?: string) => log(JSON.stringify({ level: "info", msg: "run", flow: model, ok, runId, cache: cacheField, ms: Math.round(performance.now() - started) }));
+    const save = (r: RunResult) => r.cache === "hit" || runs.save(toRecord(model, startedAt, performance.now() - started, r, input, recordRuns));
+
+    // The run happens before any streaming starts, so errors (busy, timeout, failing nodes) come back as
+    // normal HTTP status codes instead of mid-stream surprises.
+    const r = await engine.run(model, input, { signal: c.req.raw.signal, cache, timeoutMs });
+    done(r.ok && r.value.ok, r.ok ? r.value.runId : undefined, r.ok ? r.value.cache : undefined);
+    if (r.ok) save(r.value);
+    if (!r.ok) return r.error === TOO_MANY_RUNS ? c.json(openaiError("the server is busy, retry after the Retry-After delay", "server_error"), 503, { "retry-after": "1" }) : c.json(openaiError(r.error, "server_error"), 500);
+    const result = r.value;
+    if (!result.ok) {
+      const failed = Object.values(result.nodes).find((n) => n.status === "error");
+      return c.json(openaiError(failed?.result?.error ?? "the flow did not complete successfully", "server_error"), 500);
+    }
+    const content = result.output?.output ?? "";
+    if (!streamRequest) return c.json(chatCompletion(model, result.runId, content));
+
+    // OpenAI-style SSE: a role delta, the content, the finish delta, then `[DONE]`.
+    const id = `chatcmpl-${result.runId}`;
+    c.header("content-type", "text/event-stream");
+    return stream(c, async (s: StreamingApi) => {
+      await s.write(`data: ${JSON.stringify(chatChunk(id, model, { role: "assistant" }))}\n\n`);
+      if (content) await s.write(`data: ${JSON.stringify(chatChunk(id, model, { content }))}\n\n`);
+      await s.write(`data: ${JSON.stringify(chatChunk(id, model, { finish: "stop" }))}\n\n`);
+      await s.write("data: [DONE]\n\n");
+    });
   });
 
   app.post("/v1/flows/:id/run", async (c) => {

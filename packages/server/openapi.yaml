@@ -226,6 +226,109 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
+  /v1/chat/completions:
+    post:
+      operationId: chatCompletions
+      summary: Run a flow as an OpenAI-compatible chat completion
+      description: |
+        An OpenAI-compatible subset of `POST /chat/completions`, for existing OpenAI SDK clients. The
+        `model` field is the id of a loaded flow. The request runs that flow with
+        `input = { model, messages, prompt }`, where `prompt` is the content of the last user message, and
+        the output node's text becomes the assistant message.
+
+        `stream: true` returns OpenAI-style server-sent events (one `chat.completion.chunk` per delta, then
+        `[DONE]`). The run finishes before the stream starts, so errors such as a busy server come back as
+        normal HTTP status codes (503 with `Retry-After`) rather than mid-stream.
+
+        Extra OpenAI fields (`temperature`, `max_tokens`, `top_p`, ...) are accepted and ignored: the flow
+        controls behaviour, not the caller. Embeddings, tool calls and other OpenAI APIs are not supported.
+        Auth, limits, caching and `X-Milford-Timeout-Ms` behave like the other `/v1/*` routes.
+      parameters:
+        - name: X-Milford-Timeout-Ms
+          in: header
+          required: false
+          description: |
+            Milliseconds after which this run is aborted, from 1 to 600000. Overrides the
+            `run.timeoutMs` served default (60 seconds) for this request only. Not a whole number,
+            below 1 or above 600000: `400`.
+          schema: { type: integer, minimum: 1, maximum: 600000 }
+        - name: Cache-Control
+          in: header
+          required: false
+          description: |
+            Only for flows that declare `cache`. `no-cache` skips the lookup and runs the flow again, then
+            stores the fresh result. `no-store` neither reads nor writes the cache.
+          schema: { type: string, enum: [no-cache, no-store] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [model, messages]
+              properties:
+                model:
+                  type: string
+                  description: The id of the loaded flow to run.
+                messages:
+                  type: array
+                  description: Chat messages. The last user message becomes `input.prompt`.
+                  items:
+                    type: object
+                    required: [role, content]
+                    properties:
+                      role: { type: string, enum: [system, user, assistant] }
+                      content: { type: string }
+                stream:
+                  type: boolean
+                  default: false
+                  description: Stream the answer as OpenAI-style SSE chunks ending in `[DONE]`.
+                temperature: { type: number, description: Accepted and ignored; the flow controls behaviour. }
+                max_tokens: { type: integer, description: Accepted and ignored; the flow controls behaviour. }
+                top_p: { type: number, description: Accepted and ignored; the flow controls behaviour. }
+                user: { type: string, description: Accepted and ignored. }
+      responses:
+        "200":
+          description: "The flow's output node text, or an event stream when `stream: true`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatCompletion"
+            text/event-stream:
+              schema:
+                type: string
+                description: |
+                  One `data:` line per `chat.completion.chunk` (role, content, then the finish delta), and a
+                  final `data: [DONE]`. The verbatim bytes of the content are the flow output; they are not
+                  escaped or framed again.
+        "400":
+          description: |
+            The body is not JSON, `model` is missing, `messages` is not an array of `{ role, content }`,
+            `stream` is not a boolean, or `X-Milford-Timeout-Ms` is invalid.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OpenAiError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404":
+          description: The `model` is not the id of a loaded flow.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OpenAiError" }
+        "413": { $ref: "#/components/responses/TooLarge" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+        "500":
+          description: The engine could not run the flow, or a node failed.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OpenAiError" }
+        "503":
+          description: Too many runs are active. Retry after the delay in `Retry-After`.
+          headers:
+            Retry-After:
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OpenAiError" }
   /hooks/{id}:
     post:
       operationId: webhook
@@ -402,3 +505,47 @@ components:
         runId: { type: string }
         output: { type: string }
         data: {}
+    OpenAiError:
+      type: object
+      description: OpenAI-compatible error envelope.
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [message, type, param, code]
+          properties:
+            message: { type: string }
+            type: { type: string, enum: [invalid_request_error, server_error] }
+            param: { type: [string, "null"] }
+            code: { type: [string, "null"] }
+    ChatCompletion:
+      type: object
+      description: A completed chat completion, shaped like the OpenAI API.
+      required: [id, object, created, model, choices, usage]
+      properties:
+        id: { type: string, description: "`chatcmpl-` followed by the Milford run id." }
+        object: { type: string, const: "chat.completion" }
+        created: { type: integer, description: Unix time in seconds the response was built. }
+        model: { type: string, description: The flow id that was run. }
+        choices:
+          type: array
+          items:
+            type: object
+            required: [index, message, finish_reason]
+            properties:
+              index: { type: integer, const: 0 }
+              message:
+                type: object
+                required: [role, content]
+                properties:
+                  role: { type: string, const: "assistant" }
+                  content: { type: string, description: The flow's output node text. }
+              finish_reason: { type: string, const: "stop" }
+        usage:
+          type: object
+          description: "Always zero: Milford does not count tokens."
+          required: [prompt_tokens, completion_tokens, total_tokens]
+          properties:
+            prompt_tokens: { type: integer, const: 0 }
+            completion_tokens: { type: integer, const: 0 }
+            total_tokens: { type: integer, const: 0 }

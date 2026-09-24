@@ -357,3 +357,88 @@ describe("run history", () => {
     expect(Object.keys(spec.paths)).toEqual(expect.arrayContaining(["/v1/runs", "/v1/runs/{id}"]));
   });
 });
+
+describe("openai-compatible chat completions", () => {
+  // A chat provider that echoes the prompt, and a chat flow that runs it through an `llm` node.
+  const provider: Provider = {
+    id: "m",
+    type: "fake",
+    capabilities: ["chat"],
+    chat: async ({ prompt }) => ({ ok: true, value: { text: `echo: ${prompt}` } }),
+  };
+  const chatFlow = { id: "chat", nodes: [{ id: "p", type: "llm", config: { provider: "m", prompt: "{{input.prompt}}" } }, { id: "out", type: "output" }], edges: [{ from: "p", to: "out" }] };
+  const failingFlow = { id: "fails", nodes: [{ id: "f", type: "prompt", config: { template: "{{input.missing}}" } }, { id: "out", type: "output" }], edges: [{ from: "f", to: "out" }] };
+  const engine = createEngine({
+    registry: defaultRegistry().registerProvider("fake", () => ({ ok: true, value: provider })),
+    providers: [{ id: "m", type: "fake" }],
+    flows: [chatFlow, failingFlow],
+  });
+  if (!engine.ok) throw new Error(engine.error);
+  const app = createApp({ engine: engine.value, tokens: ["secret"], log: () => {} });
+  const auth = { authorization: "Bearer secret" };
+  const chat = (body: unknown, headers: Record<string, string> = {}) => app.request("/v1/chat/completions", { method: "POST", headers: { ...auth, ...headers }, body: JSON.stringify(body) });
+
+  it("runs a flow for a chat request and returns an OpenAI-shaped completion", async () => {
+    const res = await chat({ model: "chat", messages: [{ role: "user", content: "Hi there" }] });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("application/json");
+    const body = (await res.json()) as any;
+    expect(body.object).toBe("chat.completion");
+    expect(body.model).toBe("chat");
+    expect(body.id).toMatch(/^chatcmpl-/);
+    expect(body.choices).toEqual([{ index: 0, message: { role: "assistant", content: "echo: Hi there" }, finish_reason: "stop" }]);
+    expect(body.usage).toEqual({ prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 });
+    // The run is saved to history, named after the flow.
+    const runs = (await (await app.request("/v1/runs", { headers: auth })).json()) as { runs: { flow: string }[] };
+    expect(runs.runs[0]).toMatchObject({ flow: "chat" });
+  });
+
+  it("uses the last user message as input.prompt and ignores extra OpenAI fields", async () => {
+    const res = await chat({ model: "chat", messages: [{ role: "system", content: "be brief" }, { role: "user", content: "A" }, { role: "assistant", content: "ok" }, { role: "user", content: "B" }], temperature: 0.5, max_tokens: 10 });
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as any).choices[0].message.content).toBe("echo: B");
+  });
+
+  it("streams OpenAI-style SSE chunks ending in [DONE]", async () => {
+    const res = await chat({ model: "chat", messages: [{ role: "user", content: "Stream me" }], stream: true });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/event-stream");
+    const text = await res.text();
+    const lines = text.split("\n").filter((l) => l.startsWith("data: "));
+    const data = lines.map((l) => l.slice(6));
+    expect(data.at(-1)).toBe("[DONE]");
+    const chunks = data.slice(0, -1).map((d) => JSON.parse(d)) as any[];
+    expect(chunks.every((c) => c.object === "chat.completion.chunk" && c.model === "chat")).toBe(true);
+    expect(chunks[0].choices[0].delta.role).toBe("assistant");
+    expect(chunks.map((c) => c.choices[0].delta.content).filter((x) => x !== undefined).join("")).toBe("echo: Stream me");
+    expect(chunks.at(-1).choices[0].finish_reason).toBe("stop");
+  });
+
+  it("returns 400 for malformed bodies and invalid messages", async () => {
+    expect((await app.request("/v1/chat/completions", { method: "POST", headers: auth, body: "{" })).status).toBe(400);
+    expect((await chat({})).status).toBe(400); // model missing
+    expect((await chat({ model: "chat" })).status).toBe(400); // messages missing
+    expect((await chat({ model: "chat", messages: [{ role: "user" }] })).status).toBe(400); // content missing
+    expect((await chat({ model: "chat", messages: [], stream: "yes" })).status).toBe(400); // stream not boolean
+  });
+
+  it("returns 404 for an unknown model and 401 without a token", async () => {
+    const notFound = await chat({ model: "nope", messages: [] });
+    expect(notFound.status).toBe(404);
+    expect((await notFound.json())).toMatchObject({ error: { message: expect.stringContaining("nope") } });
+    expect((await app.request("/v1/chat/completions", { method: "POST", body: JSON.stringify({ model: "chat", messages: [] }) })).status).toBe(401);
+  });
+
+  it("returns 500 with the failing node's error when the flow fails", async () => {
+    const res = await chat({ model: "fails", messages: [{ role: "user", content: "x" }] });
+    expect(res.status).toBe(500);
+    const body = (await res.json()) as { error: { message: string; type: string } };
+    expect(body.error.type).toBe("server_error");
+    expect(body.error.message).toContain("missing");
+  });
+
+  it("documents the route in the OpenAPI spec", () => {
+    const spec = parse(readFileSync(new URL("../openapi.yaml", import.meta.url), "utf8")) as any;
+    expect(spec.paths["/v1/chat/completions"].post.operationId).toBe("chatCompletions");
+  });
+});

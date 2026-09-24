@@ -1,0 +1,10 @@
+# yaml-language-server: $schema=../../packages/config/milford.config.schema.json
+# OpenAI-compatible endpoint example: POST /v1/chat/completions with `model: chat-assistant`.
+# `model` selects the flow; `input.prompt` is the last user message. Set OPENAI_API_KEY to call it.
+providers:
+  - { id: openai, type: openai, apiKey: "${OPENAI_API_KEY}", model: gpt-4o-mini }
+flows:
+  - { file: ./chat-assistant.yaml }
+server:
+  port: 8080
+  auth: { tokens: ["${MILFORD_TOKEN}"] }

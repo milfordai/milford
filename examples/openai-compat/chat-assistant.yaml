@@ -1,0 +1,14 @@
+# A flow that answers a chat request through the OpenAI-compatible endpoint. The flow id is what an
+# OpenAI SDK client sends as `model`. `{{input.prompt}}` is the last user message of the request.
+id: chat-assistant
+nodes:
+  - { id: in, type: input }
+  - {
+      id: llm,
+      type: llm,
+      config: { provider: openai, model: gpt-4o-mini, prompt: "{{input.prompt}}" }
+    }
+  - { id: out, type: output, config: { template: "{{llm.output}}" } }
+edges:
+  - { from: in, to: llm }
+  - { from: llm, to: out }
