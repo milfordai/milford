@@ -1,0 +1,22 @@
+{
+  "platforms": {
+    "darwin-arm64": {
+      "machine": "Apple M4 Pro",
+      "node": "v25.9.0",
+      "generatedAt": "2026-09-24T13:56:32.976Z",
+      "metrics": {
+        "engine.f1.mean": 3,
+        "engine.f1.p50": 3,
+        "engine.f1.p95": 3,
+        "engine.f1.p99": 6,
+        "engine.f4.mean": 6,
+        "engine.f4.p50": 6,
+        "engine.f4.p95": 7,
+        "engine.f4.p99": 11,
+        "http.round-trip.p50": 61,
+        "http.round-trip.p95": 89,
+        "http.round-trip.p99": 137
+      }
+    }
+  }
+}
